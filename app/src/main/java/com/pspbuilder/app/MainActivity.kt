@@ -3,6 +3,7 @@ package com.pspbuilder.app
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -272,17 +273,19 @@ class MainActivity : Activity() {
                     val relative = file.relativeTo(projectRoot).invariantSeparatorsPath
                     val bytes = file.readBytes()
                     val encoded = Base64.getEncoder().encodeToString(bytes)
+                    val encodedPath = Uri.encode(relative, "/")
                     val body = JSONObject()
                         .put("message", "PSP Builder: subir fuente ${relative}")
                         .put("content", encoded)
                         .put("branch", branch)
-                    githubRequest(token, "PUT", "/contents/$projectPath/$relative", body)
+                    githubRequest(token, "PUT", "/contents/$projectPath/$encodedPath", body)
                     runOnUiThread { status.text = "Subiendo archivos: ${index + 1}/${files.size}" }
                 }
+                val dispatchStartedAt = System.currentTimeMillis()
                 val dispatch = JSONObject().put("ref", branch).put("inputs", JSONObject().put("project_path", projectPath))
                 githubRequest(token, "POST", "/actions/workflows/psp-build.yml/dispatches", dispatch, expected = intArrayOf(204))
                 runOnUiThread { status.text = "Fuentes subidas. GitHub Actions está compilando con PSPDEV…" }
-                val runId = waitForWorkflow(token)
+                val runId = waitForWorkflow(token, dispatchStartedAt)
                 val artifact = waitForArtifact(token, runId)
                 val zipBytes = downloadArtifact(token, artifact)
                 val eboot = extractEboot(zipBytes)
@@ -329,15 +332,14 @@ class MainActivity : Activity() {
         return response
     }
 
-    private fun waitForWorkflow(token: String): Long {
+    private fun waitForWorkflow(token: String, startedAt: Long): Long {
         // Give GitHub a moment to register the workflow_dispatch run.
         Thread.sleep(5000)
         repeat(90) {
             val json = JSONObject(githubRequest(token, "GET", "/actions/workflows/psp-build.yml/runs?branch=$branch&event=workflow_dispatch&per_page=1"))
             val runs = json.getJSONArray("workflow_runs")
             if (runs.length() > 0) {
-                val run = runs.getJSONObject(0)
-                val id = run.getLong("id")
+                val run = (0 until runs.length()).map { runs.getJSONObject(it) }.firstOrNull {\n                    try { java.time.Instant.parse(it.optString("created_at")).toEpochMilli() >= startedAt - 5000 } catch (_: Exception) { false }\n                }\n                if (run == null) { Thread.sleep(3000); return@repeat }\n                val id = run.getLong("id")
                 val state = run.optString("status")
                 if (state == "completed") {
                     if (run.optString("conclusion") != "success") {
