@@ -339,7 +339,11 @@ class MainActivity : Activity() {
             val json = JSONObject(githubRequest(token, "GET", "/actions/workflows/psp-build.yml/runs?branch=$branch&event=workflow_dispatch&per_page=1"))
             val runs = json.getJSONArray("workflow_runs")
             if (runs.length() > 0) {
-                val run = (0 until runs.length()).map { runs.getJSONObject(it) }.firstOrNull {\n                    try { java.time.Instant.parse(it.optString("created_at")).toEpochMilli() >= startedAt - 5000 } catch (_: Exception) { false }\n                }\n                if (run == null) { Thread.sleep(3000); return@repeat }\n                val id = run.getLong("id")
+                val run = (0 until runs.length()).map { runs.getJSONObject(it) }.firstOrNull {
+                    try { java.time.Instant.parse(it.optString("created_at")).toEpochMilli() >= startedAt - 5000 } catch (_: Exception) { false }
+                }
+                if (run == null) { Thread.sleep(3000); return@repeat }
+                val id = run.getLong("id")
                 val state = run.optString("status")
                 if (state == "completed") {
                     if (run.optString("conclusion") != "success") {
