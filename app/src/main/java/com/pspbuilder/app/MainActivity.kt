@@ -38,86 +38,45 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var projectLabel: TextView
     private lateinit var log: TextView
-    private lateinit var sdSwitch: Switch
-    private lateinit var tokenInput: EditText
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         buildUi()
-        tokenInput.setText(loadToken())
     }
 
     private fun buildUi() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(18), dp(20), dp(20))
+            setPadding(dp(22), dp(24), dp(22), dp(22))
             setBackgroundColor(0xFF101713.toInt())
         }
-        val scroll = ScrollView(this)
-        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        scroll.addView(content)
-        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        content.addView(TextView(this).apply {
-            text = "PSP BUILDER"; textSize = 27f
+        root.addView(TextView(this).apply {
+            text = "PSP BUILDER"; textSize = 30f
             setTextColor(0xFF9CE8B5.toInt()); typeface = android.graphics.Typeface.DEFAULT_BOLD
         })
-        content.addView(TextView(this).apply {
-            text = "Prepara y compila proyectos para PlayStation Portable"
-            textSize = 14f; setTextColor(0xFFCAD7CE.toInt()); setPadding(0, dp(4), 0, dp(18))
+        root.addView(TextView(this).apply {
+            text = "Compila tus proyectos para PlayStation Portable"
+            textSize = 14f; setTextColor(0xFFCAD7CE.toInt()); setPadding(0, dp(5), 0, dp(24))
         })
-        section(content, "1 · PROYECTO")
         projectLabel = TextView(this).apply {
-            text = projectName; textSize = 14f; setTextColor(0xFFFFFFFF.toInt()); setPadding(0, dp(8), 0, dp(10))
+            text = projectName; textSize = 14f; setTextColor(0xFFFFFFFF.toInt())
+            setPadding(0, dp(8), 0, dp(14))
         }
-        content.addView(projectLabel)
-        content.addView(button("Seleccionar ZIP del proyecto") { openZipPicker() })
-        section(content, "2 · ALMACENAMIENTO")
-        content.addView(Switch(this).apply {
-            text = "Conservar proyecto en memoria interna"; setTextColor(0xFFFFFFFF.toInt()); isChecked = true
-            isEnabled = false
+        root.addView(projectLabel)
+        root.addView(button("ELEGIR ZIP DEL PROYECTO") { openZipPicker() })
+        root.addView(button("COMPILAR EBOOT.PBP") { compileProject() }.apply {
+            setTextColor(0xFF102016.toInt()); setBackgroundColor(0xFF9CE8B5.toInt())
         })
-        sdSwitch = Switch(this).apply {
-            text = "Exportar ZIP a tarjeta SD / ubicación elegida"; setTextColor(0xFFFFFFFF.toInt()); isChecked = true
-        }
-        content.addView(sdSwitch)
-        section(content, "3 · CONEXIÓN CON GITHUB")
-        content.addView(TextView(this).apply {
-            text = "Crea un token Fine-grained para CaskIAOficial/PSPBuilder con Contents (Read and write) y Actions (Read and write). Se guarda cifrado en este dispositivo."
-            textSize = 12f; setTextColor(0xFFCAD7CE.toInt())
-        })
-        tokenInput = EditText(this).apply {
-            hint = "Token de GitHub (github_pat_...)"
-            setTextColor(0xFFFFFFFF.toInt()); setHintTextColor(0xFF91A397.toInt())
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            setSingleLine(true)
-        }
-        content.addView(tokenInput, LinearLayout.LayoutParams(-1, dp(52)))
-        content.addView(button("Guardar token cifrado") {
-            val token = tokenInput.text.toString().trim()
-            if (!token.startsWith("github_pat_") && !token.startsWith("ghp_")) {
-                status.text = "Introduce un token personal de GitHub válido."
-            } else try {
-                saveToken(token)
-                status.text = "Token guardado cifrado en Android."
-                log.text = "Conexión configurada. El token no se guarda en texto plano."
-            } catch (e: Exception) { status.text = "No se pudo guardar el token: ${e.message}" }
-        })
-        section(content, "4 · PREPARACIÓN Y COMPILACIÓN")
-        content.addView(button("Analizar y extraer proyecto") { inspectAndExtract() })
-        content.addView(button("Exportar ZIP del proyecto") { exportProjectZip() })
-        content.addView(button("COMPILAR Y DESCARGAR EBOOT.PBP") { compileProject() })
         status = TextView(this).apply {
-            text = "Selecciona un ZIP para comenzar."; textSize = 14f
-            setTextColor(0xFF9CE8B5.toInt()); setPadding(0, dp(12), 0, dp(8))
+            text = "Elige un ZIP para comenzar."; textSize = 15f
+            setTextColor(0xFF9CE8B5.toInt()); setPadding(0, dp(22), 0, dp(12))
         }
-        content.addView(status)
-        section(content, "REGISTRO")
+        root.addView(status)
         log = TextView(this).apply {
-            text = "PSP Builder 0.3.0\nListo para preparar un proyecto."
-            textSize = 12f; setTextColor(0xFFCAD7CE.toInt()); setPadding(dp(10), dp(10), dp(10), dp(10))
-            setBackgroundColor(0xFF1B2820.toInt())
+            text = "PSP Builder 0.4.0"; textSize = 12f
+            setTextColor(0xFFCAD7CE.toInt()); setPadding(0, dp(8), 0, dp(8))
         }
-        content.addView(log)
+        root.addView(log)
         setContentView(root)
     }
 
@@ -159,7 +118,7 @@ class MainActivity : Activity() {
                 projectName = displayName
                 projectLabel.text = projectName
                 extractedDir = null
-                status.text = "ZIP importado. Analízalo para extraer y validar su contenido."
+                status.text = "ZIP preparado. Pulsa COMPILAR EBOOT.PBP."
                 log.text = "Importado: $projectName\nTamaño: ${target.length()} bytes"
             } catch (e: Exception) {
                 projectFile = null
@@ -251,13 +210,14 @@ class MainActivity : Activity() {
     }
 
     private fun compileProject() {
-        val folder = extractedDir
-        if (folder == null || !folder.exists()) { status.text = "Primero importa y analiza el ZIP."; return }
-        val token = loadToken()?.takeIf { it.isNotBlank() }
-        if (token == null) { status.text = "Guarda primero tu token de GitHub."; return }
+        val zip = projectFile
+        if (zip == null || !zip.exists()) { status.text = "Primero elige un ZIP de proyecto."; return }
+        val folder = extractedDir ?: runCatching { extractProject(zip) }.getOrElse { status.text = "No se pudo preparar el ZIP: ${it.message}"; return }
+        extractedDir = folder
         val makefiles = folder.walkTopDown().filter { it.isFile && it.name.equals("Makefile", true) }.toList()
         if (makefiles.size != 1) { status.text = "El proyecto debe contener exactamente un Makefile."; return }
         val projectRoot = makefiles.single().parentFile ?: folder
+        val token = loadToken() ?: run { authorizeGitHub(); return }
         val files = projectRoot.walkTopDown().filter { it.isFile }.toList()
         if (files.isEmpty() || files.size > 100) { status.text = "El proyecto debe tener entre 1 y 100 archivos para esta versión."; return }
         val total = files.sumOf { it.length() }
@@ -291,13 +251,13 @@ class MainActivity : Activity() {
                 val eboot = extractEboot(zipBytes)
                 pendingEboot = eboot
                 runOnUiThread {
-                    status.text = "¡Compilación terminada! EBOOT.PBP generado."
-                    log.text = "Compilación correcta.\nEBOOT.PBP: ${eboot.length()} bytes\nElige dónde guardarlo para usarlo en PSP o PPSSPP."
-                    val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                        addCategory(Intent.CATEGORY_OPENABLE); type = "application/octet-stream"
-                        putExtra(Intent.EXTRA_TITLE, "EBOOT.PBP")
+                    try {
+                        val saved = saveEbootToDownloads(eboot)
+                        status.text = "¡Compilación terminada! EBOOT.PBP guardado en Descargas."
+                        log.text = "Compilación correcta.\n$saved"
+                    } catch (e: Exception) {
+                        status.text = "Compilado, pero no se pudo guardar automáticamente: ${e.message}"
                     }
-                    startActivityForResult(intent, saveEboot)
                 }
             } catch (e: Exception) {
                 runOnUiThread {
