@@ -99,7 +99,7 @@ class MainActivity : Activity() {
                 saveToken(token)
                 status.text = "Token guardado cifrado en Android."
                 log.text = "Conexión configurada. El token no se guarda en texto plano."
-            } catch (e: Exception) { status.text = "No se pudo guardar el token: \${e.message}" }
+            } catch (e: Exception) { status.text = "No se pudo guardar el token: ${e.message}" }
         })
         section(content, "4 · PREPARACIÓN Y COMPILACIÓN")
         content.addView(button("Analizar y extraer proyecto") { inspectAndExtract() })
@@ -112,7 +112,7 @@ class MainActivity : Activity() {
         content.addView(status)
         section(content, "REGISTRO")
         log = TextView(this).apply {
-            text = "PSP Builder 0.3.0\\nListo para preparar un proyecto."
+            text = "PSP Builder 0.3.0\nListo para preparar un proyecto."
             textSize = 12f; setTextColor(0xFFCAD7CE.toInt()); setPadding(dp(10), dp(10), dp(10), dp(10))
             setBackgroundColor(0xFF1B2820.toInt())
         }
@@ -159,10 +159,10 @@ class MainActivity : Activity() {
                 projectLabel.text = projectName
                 extractedDir = null
                 status.text = "ZIP importado. Analízalo para extraer y validar su contenido."
-                log.text = "Importado: $projectName\\nTamaño: \${target.length()} bytes"
+                log.text = "Importado: $projectName\nTamaño: ${target.length()} bytes"
             } catch (e: Exception) {
                 projectFile = null
-                status.text = "No se pudo importar: \${e.message ?: "error desconocido"}"
+                status.text = "No se pudo importar: ${e.message ?: "error desconocido"}"
             }
         } else if (requestCode == saveZip) {
             try {
@@ -172,7 +172,7 @@ class MainActivity : Activity() {
                     source.inputStream().use { it.copyTo(output) }
                 }
                 status.text = "ZIP exportado correctamente."
-            } catch (e: Exception) { status.text = "Error al exportar: \${e.message}" }
+            } catch (e: Exception) { status.text = "Error al exportar: ${e.message}" }
         } else if (requestCode == saveEboot) {
             try {
                 val source = pendingEboot ?: error("No hay EBOOT.PBP preparado")
@@ -181,14 +181,14 @@ class MainActivity : Activity() {
                     source.inputStream().use { it.copyTo(output) }
                 }
                 status.text = "EBOOT.PBP guardado correctamente. Ya puedes copiarlo a la PSP o abrirlo en PPSSPP."
-            } catch (e: Exception) { status.text = "Error al guardar EBOOT.PBP: \${e.message}" }
+            } catch (e: Exception) { status.text = "Error al guardar EBOOT.PBP: ${e.message}" }
         }
     }
 
     private fun inspectAndExtract() {
         val zip = projectFile
         if (zip == null || !zip.exists()) { status.text = "Selecciona primero un ZIP."; return }
-        val destination = File(filesDir, "projects/\${System.currentTimeMillis()}")
+        val destination = File(filesDir, "projects/${System.currentTimeMillis()}")
         try {
             destination.mkdirs()
             var files = 0
@@ -203,7 +203,7 @@ class MainActivity : Activity() {
                     val outFile = File(destination, entry.name).canonicalFile
                     val rootPath = destination.canonicalPath + File.separator
                     require(outFile.path == destination.canonicalPath || outFile.path.startsWith(rootPath)) {
-                        "El ZIP contiene una ruta insegura: \${entry.name}"
+                        "El ZIP contiene una ruta insegura: ${entry.name}"
                     }
                     if (entry.isDirectory) outFile.mkdirs() else {
                         files++
@@ -229,12 +229,12 @@ class MainActivity : Activity() {
             require(files > 0) { "El ZIP no contiene archivos." }
             extractedDir = destination
             val makefiles = destination.walkTopDown().filter { it.isFile && it.name.equals("Makefile", true) }.toList()
-            log.text = "Archivos extraídos: $files\\nTamaño descomprimido: \${totalBytes / 1024} KB\\nMakefile: \${if (hasMakefile) "Sí" else "No"}\\nmain.c: \${if (hasMainC) "Sí" else "No"}\\nUbicación privada: \${destination.absolutePath}"
+            log.text = "Archivos extraídos: $files\nTamaño descomprimido: ${totalBytes / 1024} KB\nMakefile: ${if (hasMakefile) "Sí" else "No"}\nmain.c: ${if (hasMainC) "Sí" else "No"}\nUbicación privada: ${destination.absolutePath}"
             status.text = if (makefiles.size == 1) "Proyecto extraído. Makefile localizado." else if (makefiles.isEmpty()) "Falta Makefile: no se puede compilar." else "Hay varios Makefiles; deja solo el correspondiente al juego."
         } catch (e: Exception) {
             destination.deleteRecursively()
             extractedDir = null
-            status.text = "No se pudo analizar el ZIP: \${e.message ?: "archivo no válido"}"
+            status.text = "No se pudo analizar el ZIP: ${e.message ?: "archivo no válido"}"
         }
     }
 
@@ -263,9 +263,9 @@ class MainActivity : Activity() {
         if (total > 20L * 1024L * 1024L || files.any { it.length() > 900L * 1024L }) {
             status.text = "Límite de esta versión: 20 MB en total y 900 KB por archivo."; return
         }
-        val projectPath = "psp-project/mobile-\${System.currentTimeMillis()}"
+        val projectPath = "psp-project/mobile-${System.currentTimeMillis()}"
         status.text = "Preparando subida a GitHub…"
-        log.text = "Proyecto: \${projectRoot.name}\\nArchivos: \${files.size}\\nTamaño: \${total / 1024} KB\\nEnviando fuentes y solicitando compilación PSPDEV…"
+        log.text = "Proyecto: ${projectRoot.name}\nArchivos: ${files.size}\nTamaño: ${total / 1024} KB\nEnviando fuentes y solicitando compilación PSPDEV…"
         Thread {
             try {
                 files.forEachIndexed { index, file ->
@@ -273,11 +273,11 @@ class MainActivity : Activity() {
                     val bytes = file.readBytes()
                     val encoded = Base64.getEncoder().encodeToString(bytes)
                     val body = JSONObject()
-                        .put("message", "PSP Builder: subir fuente \${relative}")
+                        .put("message", "PSP Builder: subir fuente ${relative}")
                         .put("content", encoded)
                         .put("branch", branch)
-                    githubRequest(token, "PUT", "/contents/\$projectPath/\$relative", body)
-                    runOnUiThread { status.text = "Subiendo archivos: \${index + 1}/\${files.size}" }
+                    githubRequest(token, "PUT", "/contents/$projectPath/$relative", body)
+                    runOnUiThread { status.text = "Subiendo archivos: ${index + 1}/${files.size}" }
                 }
                 val dispatch = JSONObject().put("ref", branch).put("inputs", JSONObject().put("project_path", projectPath))
                 githubRequest(token, "POST", "/actions/workflows/psp-build.yml/dispatches", dispatch, expected = intArrayOf(204))
@@ -289,7 +289,7 @@ class MainActivity : Activity() {
                 pendingEboot = eboot
                 runOnUiThread {
                     status.text = "¡Compilación terminada! EBOOT.PBP generado."
-                    log.text = "Compilación correcta.\\nEBOOT.PBP: \${eboot.length()} bytes\\nElige dónde guardarlo para usarlo en PSP o PPSSPP."
+                    log.text = "Compilación correcta.\nEBOOT.PBP: ${eboot.length()} bytes\nElige dónde guardarlo para usarlo en PSP o PPSSPP."
                     val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
                         addCategory(Intent.CATEGORY_OPENABLE); type = "application/octet-stream"
                         putExtra(Intent.EXTRA_TITLE, "EBOOT.PBP")
@@ -298,20 +298,20 @@ class MainActivity : Activity() {
                 }
             } catch (e: Exception) {
                 runOnUiThread {
-                    status.text = "Error de compilación: \${e.message ?: "fallo desconocido"}"
-                    log.text = "La compilación no ha terminado correctamente.\\nRevisa el token, los permisos y el registro de GitHub Actions.\\n\${e.message}"
+                    status.text = "Error de compilación: ${e.message ?: "fallo desconocido"}"
+                    log.text = "La compilación no ha terminado correctamente.\nRevisa el token, los permisos y el registro de GitHub Actions.\n${e.message}"
                 }
             }
         }.start()
     }
 
     private fun githubRequest(token: String, method: String, path: String, body: JSONObject? = null, expected: IntArray = intArrayOf(200)): String {
-        val connection = (URL("https://api.github.com/repos/\$repo\$path").openConnection() as HttpURLConnection)
+        val connection = (URL("https://api.github.com/repos/$repo$path").openConnection() as HttpURLConnection)
         connection.requestMethod = method
         connection.connectTimeout = 20000
         connection.readTimeout = 30000
         connection.setRequestProperty("Accept", "application/vnd.github+json")
-        connection.setRequestProperty("Authorization", "Bearer \$token")
+        connection.setRequestProperty("Authorization", "Bearer $token")
         connection.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
         if (body != null) {
             connection.doOutput = true
@@ -324,7 +324,7 @@ class MainActivity : Activity() {
         connection.disconnect()
         if (code !in expected) {
             val message = try { JSONObject(response).optString("message", response) } catch (_: Exception) { response }
-            throw IllegalStateException("GitHub API (\$code): \$message")
+            throw IllegalStateException("GitHub API ($code): $message")
         }
         return response
     }
@@ -333,7 +333,7 @@ class MainActivity : Activity() {
         // Give GitHub a moment to register the workflow_dispatch run.
         Thread.sleep(5000)
         repeat(90) {
-            val json = JSONObject(githubRequest(token, "GET", "/actions/runs?branch=\$branch&per_page=5"))
+            val json = JSONObject(githubRequest(token, "GET", "/actions/workflows/psp-build.yml/runs?branch=$branch&event=workflow_dispatch&per_page=1"))
             val runs = json.getJSONArray("workflow_runs")
             if (runs.length() > 0) {
                 val run = runs.getJSONObject(0)
@@ -341,11 +341,11 @@ class MainActivity : Activity() {
                 val state = run.optString("status")
                 if (state == "completed") {
                     if (run.optString("conclusion") != "success") {
-                        throw IllegalStateException("GitHub Actions terminó con estado: \${run.optString("conclusion")}. Consulta Actions para ver el error de PSPDEV.")
+                        throw IllegalStateException("GitHub Actions terminó con estado: ${run.optString("conclusion")}. Consulta Actions para ver el error de PSPDEV.")
                     }
                     return id
                 }
-                runOnUiThread { status.text = "Compilando en GitHub Actions: \$state…" }
+                runOnUiThread { status.text = "Compilando en GitHub Actions: $state…" }
             }
             Thread.sleep(5000)
         }
@@ -354,7 +354,7 @@ class MainActivity : Activity() {
 
     private fun waitForArtifact(token: String, runId: Long): Long {
         repeat(12) {
-            val json = JSONObject(githubRequest(token, "GET", "/actions/runs/\$runId/artifacts"))
+            val json = JSONObject(githubRequest(token, "GET", "/actions/runs/$runId/artifacts"))
             val items = json.getJSONArray("artifacts")
             if (items.length() > 0) return items.getJSONObject(0).getLong("id")
             Thread.sleep(2000)
@@ -363,17 +363,17 @@ class MainActivity : Activity() {
     }
 
     private fun downloadArtifact(token: String, artifactId: Long): ByteArray {
-        val url = URL("https://api.github.com/repos/\$repo/actions/artifacts/\$artifactId/zip")
+        val url = URL("https://api.github.com/repos/$repo/actions/artifacts/$artifactId/zip")
         val c = url.openConnection() as HttpURLConnection
         c.instanceFollowRedirects = false
         c.connectTimeout = 20000
         c.readTimeout = 60000
         c.setRequestProperty("Accept", "application/vnd.github+json")
-        c.setRequestProperty("Authorization", "Bearer \$token")
+        c.setRequestProperty("Authorization", "Bearer $token")
         val code = c.responseCode
         val location = c.getHeaderField("Location")
         c.disconnect()
-        if (code !in 300..399 || location.isNullOrBlank()) throw IllegalStateException("No se pudo descargar el artefacto de GitHub (HTTP \$code).")
+        if (code !in 300..399 || location.isNullOrBlank()) throw IllegalStateException("No se pudo descargar el artefacto de GitHub (HTTP $code).")
         val signed = (URL(location).openConnection() as HttpURLConnection)
         signed.connectTimeout = 20000
         signed.readTimeout = 60000
