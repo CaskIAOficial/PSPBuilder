@@ -409,6 +409,149 @@ class MainActivity : Activity() {
         return out
     }
 
+    private fun extractProject(zip: File): File {
+        val destination = File(filesDir, "projects/${System.currentTimeMillis()}")
+        destination.mkdirs()
+        try {
+            var count = 0
+            var total = 0L
+            ZipInputStream(BufferedInputStream(zip.inputStream())).use { input ->
+                while (true) {
+                    val entry = input.nextEntry ?: break
+                    val out = File(destination, entry.name).canonicalFile
+                    val root = destination.canonicalPath + File.separator
+                    require(out.path == destination.canonicalPath || out.path.startsWith(root)) { "El ZIP contiene una ruta insegura." }
+                    if (entry.isDirectory) out.mkdirs() else {
+                        count++
+                        require(count <= 10000) { "Demasiados archivos en el ZIP." }
+                        out.parentFile?.mkdirs()
+                        out.outputStream().use { output ->
+                            val buffer = ByteArray(8192)
+                            while (true) {
+                                val n = input.read(buffer)
+                                if (n < 0) break
+                                total += n
+                                require(total <= 300L * 1024L * 1024L) { "El ZIP supera 300 MB descomprimidos." }
+                                output.write(buffer, 0, n)
+                            }
+                        }
+                    }
+                    input.closeEntry()
+                }
+            }
+            require(count > 0) { "El ZIP está vacío." }
+            return destination
+        } catch (e: Exception) {
+            destination.deleteRecursively()
+            throw e
+        }
+    }
+
+    private fun authorizeGitHub() {
+        status.text = "Conectando con GitHub para la autorización inicial…"
+        Thread {
+            try {
+                val device = oauthPost("https://github.com/login/device/code",
+                    "client_id=$OAUTH_CLIENT_ID&scope=repo%20workflow")
+                val code = device.getString("user_code")
+                val deviceCode = device.getString("device_code")
+                val verification = device.optString("verification_uri", "https://github.com/login/device")
+                val interval = device.optLong("interval", 5L)
+                runOnUiThread {
+                    AlertDialog.Builder(this)
+                        .setTitle("Autorizar PSP Builder")
+                        .setMessage("GitHub necesita que autorices esta aplicación una sola vez.\n\nCódigo: $code\n\nSe abrirá GitHub para introducirlo.")
+                        .setPositiveButton("Abrir GitHub") { _, _ ->
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(verification)))
+                            status.text = "Introduce el código en GitHub. Esperando autorización…"
+                        }
+                        .setNegativeButton("Ahora no", null)
+                        .show()
+                }
+                var waitSeconds = interval
+                repeat(60) {
+                    Thread.sleep(waitSeconds * 1000L)
+                    val result = oauthPost("https://github.com/login/oauth/access_token",
+                        "client_id=$OAUTH_CLIENT_ID&device_code=${Uri.encode(deviceCode)}&grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code",
+                        allowOAuthError = true)
+                    val token = result.optString("access_token")
+                    if (token.isNotBlank()) {
+                        saveToken(token)
+                        runOnUiThread {
+                            status.text = "GitHub autorizado. Iniciando compilación…"
+                            compileProject()
+                        }
+                        return@Thread
+                    }
+                    when (result.optString("error")) {
+                        "authorization_pending" -> waitSeconds = interval
+                        "slow_down" -> waitSeconds += 5
+                        "expired_token" -> throw IllegalStateException("El código ha caducado. Pulsa COMPILAR para intentarlo de nuevo.")
+                        "access_denied" -> throw IllegalStateException("Has rechazado la autorización de GitHub.")
+                        else -> throw IllegalStateException(result.optString("error_description", "No se pudo autorizar GitHub."))
+                    }
+                }
+                throw IllegalStateException("Se agotó el tiempo de autorización. Inténtalo de nuevo.")
+            } catch (e: Exception) {
+                runOnUiThread { status.text = "No se pudo conectar con GitHub: ${e.message}" }
+            }
+        }.start()
+    }
+
+    private fun oauthPost(endpoint: String, form: String, allowOAuthError: Boolean = false): JSONObject {
+        val c = (URL(endpoint).openConnection() as HttpURLConnection)
+        c.requestMethod = "POST"
+        c.connectTimeout = 20000
+        c.readTimeout = 30000
+        c.doOutput = true
+        c.setRequestProperty("Accept", "application/json")
+        c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+        c.outputStream.use { it.write(form.toByteArray(Charsets.UTF_8)) }
+        val code = c.responseCode
+        val stream = if (code in 200..299) c.inputStream else c.errorStream
+        val body = stream?.bufferedReader()?.use { it.readText() } ?: ""
+        c.disconnect()
+        if (code !in 200..299) throw IllegalStateException("OAuth de GitHub devolvió HTTP $code: $body")
+        val json = JSONObject(body)
+        if (!allowOAuthError && json.has("error")) throw IllegalStateException(json.optString("error_description", json.optString("error")))
+        return json
+    }
+
+    private fun saveEbootToDownloads(source: File): String {
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "EBOOT.PBP")
+                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/octet-stream")
+                put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
+                put(android.provider.MediaStore.MediaColumns.IS_PENDING, 1)
+            }
+            val uri = contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                ?: error("Android no pudo crear el archivo en Descargas.")
+            try {
+                contentResolver.openOutputStream(uri, "w").use { output ->
+                    requireNotNull(output) { "No se pudo abrir el archivo de destino." }
+                    source.inputStream().use { it.copyTo(output) }
+                }
+                values.clear()
+                values.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 0)
+                contentResolver.update(uri, values, null, null)
+                return "Guardado en Descargas/EBOOT.PBP"
+            } catch (e: Exception) {
+                contentResolver.delete(uri, null, null)
+                throw e
+            }
+        } else {
+            val dir = getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS) ?: error("Almacenamiento no disponible.")
+            val target = File(dir, "EBOOT.PBP")
+            source.copyTo(target, overwrite = true)
+            return "Guardado en almacenamiento de PSP Builder: ${target.absolutePath}"
+        }
+    }
+
+    companion object {
+        private const val OAUTH_CLIENT_ID = "Ov23lizj2r6aAplWCq8f"
+    }
+
     private fun secretKey(): SecretKey {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         val existing = ks.getKey(keyAlias, null) as? SecretKey
