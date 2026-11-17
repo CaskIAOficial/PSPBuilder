@@ -1,0 +1,19 @@
+PSP BUILDER 0.2.0
+=================
+
+Implementado en esta fuente:
+- Importación de ZIP desde Android Storage Access Framework.
+- Extracción privada con validación de rutas y límites de tamaño/archivos.
+- Detección de Makefile y main.c.
+- Exportación del ZIP original a un destino elegido.
+- Workflow para generar APK de depuración.
+- Workflow manual para compilar fuentes PSPDEV presentes en psp-project/.
+
+Pendiente:
+- PSPDEV local ARM64/Termux.
+- Integración autenticada de GitHub Actions desde la app.
+- Subida segura de fuentes desde el móvil al repositorio.
+- Descarga e instalación del EBOOT.PBP desde la app.
+- Icono, pruebas instrumentadas y pruebas en dispositivos reales.
+
+No se ha ejecutado una compilación Android ni PSP en este entorno. El APK y EBOOT.PBP no están generados ni validados.
