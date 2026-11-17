@@ -38,6 +38,7 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var projectLabel: TextView
     private lateinit var log: TextView
+    private lateinit var sdSwitch: Switch
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
