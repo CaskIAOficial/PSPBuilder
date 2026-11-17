@@ -89,7 +89,7 @@ class MainActivity : Activity() {
             hint = "Token de GitHub (github_pat_...)"
             setTextColor(0xFFFFFFFF.toInt()); setHintTextColor(0xFF91A397.toInt())
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            singleLine = true
+            setSingleLine(true)
         }
         content.addView(tokenInput, LinearLayout.LayoutParams(-1, dp(52)))
         content.addView(button("Guardar token cifrado") {
