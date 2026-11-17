@@ -42,7 +42,7 @@ jobs:
       - name: Upload PSP build
         uses: actions/upload-artifact@v4
         with:
-          name: PSP-EBOOT-${{ github.run_number }}
+          name: PSP-EBOOT-${{ inputs.request_id }}
           path: |
             ${{ inputs.project_path }}/**/EBOOT.PBP
             ${{ inputs.project_path }}/**/*.elf
