@@ -249,7 +249,7 @@ class MainActivity : Activity() {
                 val jobId = queued.getString("job_id")
                 runOnUiThread { status.text = "Proyecto recibido. GitHub Actions está compilando con PSPDEV…" }
                 var completed = false
-                repeat(90) { attempt ->
+                for (attempt in 0 until 90) {
                     Thread.sleep(5000L)
                     val state = workerRequest("GET", "/status/$jobId")
                     val phase = state.optString("status")
@@ -258,13 +258,12 @@ class MainActivity : Activity() {
                             throw IllegalStateException("GitHub Actions terminó con estado: ${state.optString("conclusion")}. ${state.optString("html_url")}")
                         }
                         completed = true
-                        return@repeat
+                        break
                     }
                     runOnUiThread {
                         status.text = "Compilando en PSPDEV… (${attempt + 1}/90)"
                         log.text = state.optString("message", "Esperando el resultado de GitHub Actions…")
                     }
-                    if (completed) return@repeat
                 }
                 if (!completed) throw IllegalStateException("La compilación está tardando demasiado. Comprueba GitHub Actions e inténtalo de nuevo.")
                 runOnUiThread { status.text = "Compilación terminada. Descargando EBOOT.PBP…" }
