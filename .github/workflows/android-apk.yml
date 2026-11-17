@@ -12,6 +12,7 @@ permissions:
 jobs:
   build-android:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,17 +21,28 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          # "tools" is an obsolete SDK package and causes sdkmanager to fail.
-          packages: platform-tools
-          accept-android-sdk-licenses: true
+      - name: Use Android SDK preinstalled on GitHub runner
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          if [ -z "${ANDROID_HOME:-}" ] || [ ! -d "$ANDROID_HOME" ]; then
+            echo "::error::Android SDK no está disponible en el runner."
+            exit 1
+          fi
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager 2>/dev/null | head -n 1)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "::error::No se encuentra sdkmanager en Android SDK."
+            exit 1
+          fi
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
       - name: Build debug APK
+        timeout-minutes: 15
         run: gradle --no-daemon :app:assembleDebug
       - name: Upload APK
         uses: actions/upload-artifact@v4
