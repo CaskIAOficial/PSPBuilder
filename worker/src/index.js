@@ -50,13 +50,14 @@ async function github(env, path, options = {}) {
   const jwt = await createAppJwt(env);
   const tokenResponse = await fetch(API + "/app/installations/" + env.GITHUB_INSTALLATION_ID + "/access_tokens", {
     method: "POST",
-    headers: { Authorization: "Bearer " + jwt, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" }
+    headers: { "User-Agent": "PSPBuilder-Cloudflare-Worker", Authorization: "Bearer " + jwt, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" }
   });
   if (!tokenResponse.ok) throw new Error("GitHub App no pudo obtener el token de instalación: " + tokenResponse.status + " " + await tokenResponse.text());
   const installation = await tokenResponse.json();
   return fetch(API + "/repos/" + OWNER + "/" + REPO + path, {
     ...options,
     headers: {
+      "User-Agent": "PSPBuilder-Cloudflare-Worker",
       Accept: "application/vnd.github+json",
       Authorization: "Bearer " + installation.token,
       "X-GitHub-Api-Version": "2022-11-28",
@@ -80,7 +81,7 @@ export default {
     const url = new URL(request.url);
     const configured = Boolean(env.GITHUB_APP_ID && env.GITHUB_INSTALLATION_ID && env.GITHUB_PRIVATE_KEY);
     if (url.pathname === "/" || url.pathname === "/health") {
-      return json({ service: "PSP Builder API", status: "online", version: "1.1.0", configured,
+      return json({ service: "PSP Builder API", status: "online", version: "1.1.1", configured,
         message: configured ? "Secretos detectados. La autenticación con GitHub se verificará al iniciar una compilación." : "Faltan secretos de GitHub App." }, 200, cors);
     }
     if (!configured) return json({ error: "SERVER_NOT_CONFIGURED", message: "Faltan las credenciales de GitHub App en Cloudflare." }, 503, cors);
