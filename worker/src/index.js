@@ -80,8 +80,8 @@ export default {
     const url = new URL(request.url);
     const configured = Boolean(env.GITHUB_APP_ID && env.GITHUB_INSTALLATION_ID && env.GITHUB_PRIVATE_KEY);
     if (url.pathname === "/" || url.pathname === "/health") {
-      return json({ service: "PSP Builder API", status: "online", version: "1.0.0", configured,
-        message: configured ? "GitHub App configurada." : "Faltan secretos de GitHub App." }, 200, cors);
+      return json({ service: "PSP Builder API", status: "online", version: "1.1.0", configured,
+        message: configured ? "Secretos detectados. La autenticación con GitHub se verificará al iniciar una compilación." : "Faltan secretos de GitHub App." }, 200, cors);
     }
     if (!configured) return json({ error: "SERVER_NOT_CONFIGURED", message: "Faltan las credenciales de GitHub App en Cloudflare." }, 503, cors);
     try {
@@ -147,7 +147,7 @@ export default {
         if (!artifact) return json({ error: "ARTIFACT_NOT_FOUND", message: "No se encontró el EBOOT generado." }, 404, cors);
         const downloadResponse = await github(env, "/actions/artifacts/" + artifact.id + "/zip", { redirect: "manual" });
         const location = downloadResponse.headers.get("Location");
-        if (downloadResponse.status !== 302 || !location) throw new Error("GitHub no proporcionó el enlace del artefacto.");
+        if (![301, 302, 303, 307, 308].includes(downloadResponse.status) || !location) throw new Error("GitHub no proporcionó el enlace del artefacto.");
         const zipResponse = await fetch(location);
         if (!zipResponse.ok) throw new Error("No se pudo descargar el artefacto generado.");
         return new Response(zipResponse.body, { status: 200, headers: { ...cors, "Content-Type": "application/zip",
