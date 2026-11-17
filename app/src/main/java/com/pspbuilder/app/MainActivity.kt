@@ -213,43 +213,63 @@ class MainActivity : Activity() {
     private fun compileProject() {
         val zip = projectFile
         if (zip == null || !zip.exists()) { status.text = "Primero elige un ZIP de proyecto."; return }
-        val folder = extractedDir ?: runCatching { extractProject(zip) }.getOrElse { status.text = "No se pudo preparar el ZIP: ${it.message}"; return }
+        val folder = extractedDir ?: runCatching { extractProject(zip) }.getOrElse {
+            status.text = "No se pudo preparar el ZIP: ${it.message}"; return
+        }
         extractedDir = folder
         val makefiles = folder.walkTopDown().filter { it.isFile && it.name.equals("Makefile", true) }.toList()
-        if (makefiles.size != 1) { status.text = "El proyecto debe contener exactamente un Makefile."; return }
+        if (makefiles.size != 1) {
+            status.text = "El proyecto debe contener exactamente un Makefile."
+            return
+        }
         val projectRoot = makefiles.single().parentFile ?: folder
-        val token = loadToken() ?: run { authorizeGitHub(); return }
         val files = projectRoot.walkTopDown().filter { it.isFile }.toList()
-        if (files.isEmpty() || files.size > 100) { status.text = "El proyecto debe tener entre 1 y 100 archivos para esta versión."; return }
+        if (files.isEmpty() || files.size > 100) {
+            status.text = "El proyecto debe tener entre 1 y 100 archivos."
+            return
+        }
         val total = files.sumOf { it.length() }
         if (total > 20L * 1024L * 1024L || files.any { it.length() > 900L * 1024L }) {
-            status.text = "Límite de esta versión: 20 MB en total y 900 KB por archivo."; return
+            status.text = "Límite: 20 MB en total y 900 KB por archivo."
+            return
         }
-        val projectPath = "psp-project/mobile-${System.currentTimeMillis()}"
-        status.text = "Preparando subida a GitHub…"
-        log.text = "Proyecto: ${projectRoot.name}\nArchivos: ${files.size}\nTamaño: ${total / 1024} KB\nEnviando fuentes y solicitando compilación PSPDEV…"
+        status.text = "Enviando el proyecto al servidor seguro…"
+        log.text = "Proyecto: ${projectRoot.name}\nArchivos: ${files.size}\nTamaño: ${total / 1024} KB\nPreparando compilación PSPDEV…"
         Thread {
             try {
+                val entries = org.json.JSONArray()
                 files.forEachIndexed { index, file ->
                     val relative = file.relativeTo(projectRoot).invariantSeparatorsPath
-                    val bytes = file.readBytes()
-                    val encoded = Base64.getEncoder().encodeToString(bytes)
-                    val encodedPath = Uri.encode(relative, "/")
-                    val body = JSONObject()
-                        .put("message", "PSP Builder: subir fuente ${relative}")
-                        .put("content", encoded)
-                        .put("branch", branch)
-                    githubRequest(token, "PUT", "/contents/$projectPath/$encodedPath", body)
-                    runOnUiThread { status.text = "Subiendo archivos: ${index + 1}/${files.size}" }
+                    val encoded = Base64.getEncoder().encodeToString(file.readBytes())
+                    entries.put(JSONObject().put("path", relative).put("content", encoded))
+                    runOnUiThread { status.text = "Preparando archivos: ${index + 1}/${files.size}" }
                 }
-                val dispatchStartedAt = System.currentTimeMillis()
-                val dispatch = JSONObject().put("ref", branch).put("inputs", JSONObject().put("project_path", projectPath))
-                githubRequest(token, "POST", "/actions/workflows/psp-build.yml/dispatches", dispatch, expected = intArrayOf(204))
-                runOnUiThread { status.text = "Fuentes subidas. GitHub Actions está compilando con PSPDEV…" }
-                val runId = waitForWorkflow(token, dispatchStartedAt)
-                val artifact = waitForArtifact(token, runId)
-                val zipBytes = downloadArtifact(token, artifact)
-                val eboot = extractEboot(zipBytes)
+                val payload = JSONObject().put("files", entries)
+                val queued = workerRequest("POST", "/compile", payload)
+                val jobId = queued.getString("job_id")
+                runOnUiThread { status.text = "Proyecto recibido. GitHub Actions está compilando con PSPDEV…" }
+                var completed = false
+                repeat(90) { attempt ->
+                    Thread.sleep(5000L)
+                    val state = workerRequest("GET", "/status/$jobId")
+                    val phase = state.optString("status")
+                    if (phase == "completed") {
+                        if (state.optString("conclusion") != "success") {
+                            throw IllegalStateException("GitHub Actions terminó con estado: ${state.optString("conclusion")}. ${state.optString("html_url")}")
+                        }
+                        completed = true
+                        return@repeat
+                    }
+                    runOnUiThread {
+                        status.text = "Compilando en PSPDEV… (${attempt + 1}/90)"
+                        log.text = state.optString("message", "Esperando el resultado de GitHub Actions…")
+                    }
+                    if (completed) return@repeat
+                }
+                if (!completed) throw IllegalStateException("La compilación está tardando demasiado. Comprueba GitHub Actions e inténtalo de nuevo.")
+                runOnUiThread { status.text = "Compilación terminada. Descargando EBOOT.PBP…" }
+                val artifactZip = workerDownload("/result/$jobId")
+                val eboot = extractEboot(artifactZip)
                 pendingEboot = eboot
                 runOnUiThread {
                     try {
@@ -263,10 +283,52 @@ class MainActivity : Activity() {
             } catch (e: Exception) {
                 runOnUiThread {
                     status.text = "Error de compilación: ${e.message ?: "fallo desconocido"}"
-                    log.text = "La compilación no ha terminado correctamente.\nRevisa el token, los permisos y el registro de GitHub Actions.\n${e.message}"
+                    log.text = "La compilación no ha terminado correctamente.\n${e.message}"
                 }
             }
         }.start()
+    }
+
+    private fun workerRequest(method: String, path: String, body: JSONObject? = null): JSONObject {
+        val connection = (URL("https://pspbuilder.caskiaoficial.workers.dev$path").openConnection() as HttpURLConnection)
+        connection.requestMethod = method
+        connection.connectTimeout = 30000
+        connection.readTimeout = 60000
+        connection.setRequestProperty("Accept", "application/json")
+        if (body != null) {
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+        }
+        val code = connection.responseCode
+        val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+        val response = stream?.bufferedReader()?.use { it.readText() } ?: ""
+        connection.disconnect()
+        val result = try { JSONObject(response) } catch (_: Exception) {
+            throw IllegalStateException("El servidor devolvió una respuesta no válida (HTTP $code).")
+        }
+        if (code !in 200..299) {
+            throw IllegalStateException(result.optString("message", result.optString("error", "Error del servidor HTTP $code")))
+        }
+        return result
+    }
+
+    private fun workerDownload(path: String): ByteArray {
+        val connection = (URL("https://pspbuilder.caskiaoficial.workers.dev$path").openConnection() as HttpURLConnection)
+        connection.connectTimeout = 30000
+        connection.readTimeout = 120000
+        connection.setRequestProperty("Accept", "application/zip")
+        val code = connection.responseCode
+        if (code !in 200..299) {
+            val message = connection.errorStream?.bufferedReader()?.use { it.readText() } ?: "HTTP $code"
+            connection.disconnect()
+            val detail = try { JSONObject(message).optString("message", message) } catch (_: Exception) { message }
+            throw IllegalStateException(detail)
+        }
+        val bytes = connection.inputStream.use { it.readBytes() }
+        connection.disconnect()
+        require(bytes.isNotEmpty()) { "El servidor devolvió un artefacto vacío." }
+        return bytes
     }
 
     private fun githubRequest(token: String, method: String, path: String, body: JSONObject? = null, expected: IntArray = intArrayOf(200)): String {
