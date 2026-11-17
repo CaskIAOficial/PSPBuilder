@@ -272,8 +272,9 @@ class MainActivity : Activity() {
                 pendingEboot = eboot
                 runOnUiThread {
                     try {
-                        val saved = saveEbootToDownloads(eboot)
-                        status.text = "¡Compilación terminada! EBOOT.PBP guardado en Descargas."
+                        val gameFolderName = getGameFolderName(projectRoot)
+                        val saved = saveEbootToDownloads(eboot, gameFolderName)
+                        status.text = "¡Compilación terminada! EBOOT.PBP guardado en Descargas/$gameFolderName/"
                         log.text = "Compilación correcta.\n$saved"
                     } catch (e: Exception) {
                         status.text = "Compilado, pero no se pudo guardar automáticamente: ${e.message}"
@@ -539,16 +540,26 @@ class MainActivity : Activity() {
         return json
     }
 
-    private fun saveEbootToDownloads(source: File): String {
+    private fun getGameFolderName(projectRoot: File): String {
+        val fromZip = projectName.substringBeforeLast('.', projectName).trim()
+        val candidate = if (fromZip.isNotBlank() && fromZip != "Ningún proyecto seleccionado") fromZip else projectRoot.name
+        val safe = candidate.replace(Regex("[\\\\/:*?\\"<>|]"), "_")
+            .replace(Regex("\\s+"), " ")
+            .trim().trim('.')
+        return safe.take(64).ifBlank { "Juego PSP" }
+    }
+
+    private fun saveEbootToDownloads(source: File, gameFolderName: String): String {
         if (android.os.Build.VERSION.SDK_INT >= 29) {
             val values = android.content.ContentValues().apply {
                 put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "EBOOT.PBP")
                 put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/octet-stream")
-                put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
+                put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH,
+                    "${android.os.Environment.DIRECTORY_DOWNLOADS}/$gameFolderName/")
                 put(android.provider.MediaStore.MediaColumns.IS_PENDING, 1)
             }
             val uri = contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                ?: error("Android no pudo crear el archivo en Descargas.")
+                ?: error("Android no pudo crear la carpeta del juego en Descargas.")
             try {
                 contentResolver.openOutputStream(uri, "w").use { output ->
                     requireNotNull(output) { "No se pudo abrir el archivo de destino." }
@@ -557,13 +568,15 @@ class MainActivity : Activity() {
                 values.clear()
                 values.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 0)
                 contentResolver.update(uri, values, null, null)
-                return "Guardado en Descargas/EBOOT.PBP"
+                return "Guardado en Descargas/$gameFolderName/EBOOT.PBP"
             } catch (e: Exception) {
                 contentResolver.delete(uri, null, null)
                 throw e
             }
         } else {
-            val dir = getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS) ?: error("Almacenamiento no disponible.")
+            val base = getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS)
+                ?: error("Almacenamiento no disponible.")
+            val dir = File(base, gameFolderName).apply { mkdirs() }
             val target = File(dir, "EBOOT.PBP")
             source.copyTo(target, overwrite = true)
             return "Guardado en almacenamiento de PSP Builder: ${target.absolutePath}"
