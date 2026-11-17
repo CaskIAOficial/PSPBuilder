@@ -543,7 +543,7 @@ class MainActivity : Activity() {
     private fun getGameFolderName(projectRoot: File): String {
         val fromZip = projectName.substringBeforeLast('.', projectName).trim()
         val candidate = if (fromZip.isNotBlank() && fromZip != "Ningún proyecto seleccionado") fromZip else projectRoot.name
-        val safe = candidate.replace(Regex("[\\\\/:*?\\"<>|]"), "_")
+        val safe = candidate.map { if (it in charArrayOf('/', '\\', ':', '*', '?', '"', '<', '>', '|')) '_' else it }.joinToString("")
             .replace(Regex("\\s+"), " ")
             .trim().trim('.')
         return safe.take(64).ifBlank { "Juego PSP" }
