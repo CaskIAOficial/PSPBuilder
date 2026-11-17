@@ -1,8 +1,13 @@
 name: Compile PSP project with PSPDEV
+run-name: PSP Builder ${{ inputs.request_id }}
 
 on:
   workflow_dispatch:
     inputs:
+      request_id:
+        description: 'Identificador de la compilación iniciada desde PSP Builder'
+        required: true
+        type: string
       project_path:
         description: 'Carpeta del proyecto PSP dentro del repositorio'
         required: true
