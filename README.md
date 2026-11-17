@@ -1,35 +1,42 @@
-# PSP Builder para Android — 0.2.0
+# PSP Builder para Android — 0.3.0
 
-Aplicación Android nativa (Kotlin) para importar proyectos PSP en ZIP, extraerlos de forma segura, comprobar la presencia de `Makefile` y `main.c`, conservar una copia privada y exportar el ZIP a una ubicación elegida.
+Aplicación Android nativa para importar un proyecto PSP en ZIP, extraerlo de forma segura, enviarlo a GitHub Actions, compilarlo con PSPDEV y descargar el `EBOOT.PBP` generado.
 
-## Estado real de esta versión
+## Funciones
 
 - Importación de ZIP mediante el selector de documentos de Android.
-- Extracción en almacenamiento privado de la aplicación.
-- Protección contra rutas ZIP maliciosas (`../`), límite de 10.000 archivos y 300 MB descomprimidos.
-- Detección de `Makefile` y `main.c`.
-- Exportación del ZIP original a memoria interna, tarjeta SD o proveedor de documentos elegido.
-- **La compilación EBOOT.PBP todavía no está conectada a la interfaz.** No hay PSPDEV local para Android ni autenticación configurada para lanzar GitHub Actions desde la app.
+- Extracción privada con protección contra ZIP Slip, límite de 10.000 archivos y 300 MB descomprimidos.
+- Detección de `Makefile`; para compilar debe existir exactamente uno.
+- Conexión con GitHub mediante token personal Fine-grained.
+- Token cifrado con AES/GCM y clave guardada en Android Keystore.
+- Subida de fuentes a una carpeta única `psp-project/mobile-...` del repositorio.
+- Lanzamiento del workflow PSPDEV, seguimiento de la ejecución y descarga del artefacto.
+- Exportación del archivo final `EBOOT.PBP` a la ubicación que elijas en el móvil.
 
-## Generar APK
+## Configurar GitHub (una sola vez por dispositivo)
 
-El workflow `.github/workflows/android-apk.yml` genera un APK de depuración en GitHub Actions. En el repositorio, abre **Actions → Build PSP Builder Android APK** y descarga el artefacto `PSPBuilder-debug-apk` cuando termine correctamente.
+Crea un Fine-grained personal access token en GitHub limitado al repositorio `CaskIAOficial/PSPBuilder`, con estos permisos de repositorio:
 
-Requisitos de compilación local: JDK 17, Android SDK 35 y Gradle 8.9.
+- **Contents: Read and write**
+- **Actions: Read and write**
 
-## Compilar un juego PSP en GitHub Actions
+Introduce el token en PSP Builder y pulsa **Guardar token cifrado**. No compartas el token ni lo incluyas en ZIP o código. Si revocas el token en GitHub, crea otro y guárdalo en la aplicación.
 
-1. Coloca el proyecto completo dentro de `psp-project/` (incluye `Makefile`, fuentes y recursos).
-2. Abre **Actions → Compile PSP project with PSPDEV → Run workflow**.
-3. Mantén `psp-project` como ruta o indica una subcarpeta dentro de ella.
-4. Si termina correctamente, descarga `PSP-EBOOT-*` en Artifacts.
+## Compilar un juego
 
-El workflow no puede compilar un ZIP que solo esté en el teléfono: los fuentes deben estar en el repositorio. No añadas tokens, contraseñas ni secretos al código fuente.
+1. El ZIP debe contener el proyecto fuente de un juego PSP, con su `Makefile`, código y recursos. No sirve un ZIP de un juego ya compilado ni un ISO/CSO.
+2. Importa el ZIP y pulsa **Analizar y extraer proyecto**.
+3. Guarda el token de GitHub.
+4. Pulsa **COMPILAR Y DESCARGAR EBOOT.PBP** y espera a que GitHub Actions termine.
+5. Elige dónde guardar `EBOOT.PBP`. Ese es el archivo ejecutable que podrás colocar en una PSP compatible o abrir con PPSSPP.
 
-## Estructura
+## Límites actuales de subida desde Android
 
-- `app/`: aplicación Android.
-- `.github/workflows/android-apk.yml`: generación del APK.
-- `.github/workflows/psp-build.yml`: compilación PSPDEV remota.
-- `psp-project/`: carpeta donde colocar el juego.
-- `docs/`: documentación y limitaciones.
+Para evitar peticiones excesivas a la API de GitHub, esta versión admite hasta 100 archivos, 20 MB en total y 900 KB por archivo. Si el proyecto supera esos límites, habrá que añadir un mecanismo de subida Git Git Data (blobs/trees) o LFS.
+
+## Workflows
+
+- `.github/workflows/android-apk.yml`: compila el APK de Android.
+- `.github/workflows/psp-build.yml`: compila el proyecto remoto con la imagen PSPDEV y publica el artefacto `PSP-EBOOT-...`.
+
+El APK de depuración se descarga desde **Actions → Build PSP Builder Android APK → Artifacts**.
