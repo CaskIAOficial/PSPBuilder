@@ -1,0 +1,51 @@
+name: Compile PSP project with PSPDEV
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_path:
+        description: 'Carpeta del proyecto PSP dentro del repositorio'
+        required: true
+        default: 'psp-project'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-psp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate project path
+        env:
+          PROJECT_PATH: ${{ inputs.project_path }}
+        run: |
+          set -eu
+          case "$PROJECT_PATH" in psp-project|psp-project/*) ;; *) echo "La ruta debe estar dentro de psp-project/"; exit 1;; esac
+          test -d "$PROJECT_PATH"
+          test -f "$PROJECT_PATH/Makefile" || test -f "$PROJECT_PATH/makefile"
+      - name: Build with PSPDEV
+        env:
+          PROJECT_PATH: ${{ inputs.project_path }}
+        run: |
+          set -eu
+          docker pull pspdev/pspdev:latest
+          docker run --rm -v "$GITHUB_WORKSPACE/$PROJECT_PATH:/source" -w /source pspdev/pspdev:latest sh -lc 'make clean || true; make -j2'
+      - name: Verify EBOOT.PBP
+        env:
+          PROJECT_PATH: ${{ inputs.project_path }}
+        run: |
+          set -eu
+          find "$PROJECT_PATH" -type f -iname EBOOT.PBP -print -quit | grep -q . || { echo "No se ha generado EBOOT.PBP"; exit 1; }
+      - name: Upload PSP build
+        uses: actions/upload-artifact@v4
+        with:
+          name: PSP-EBOOT-${{ github.run_number }}
+          path: |
+            ${{ inputs.project_path }}/**/EBOOT.PBP
+            ${{ inputs.project_path }}/**/*.elf
+            ${{ inputs.project_path }}/**/*.prx
+          if-no-files-found: error
+          retention-days: 30
