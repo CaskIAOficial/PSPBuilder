@@ -103,7 +103,7 @@ class MainActivity : Activity() {
             return
         }
         AlertDialog.Builder(this).setTitle("Preparar Termux")
-            .setMessage("Concede a PSP Builder el permiso «Ejecutar comandos en Termux» desde Ajustes > Aplicaciones > PSP Builder > Permisos. En Termux activa allow-external-apps=true en ~/.termux/termux.properties y reinicia Termux. Después pulsa CONTINUAR.")
+            .setMessage("Concede a PSP Builder el permiso «Ejecutar comandos en Termux». En Termux ejecuta una sola vez termux-setup-storage y acepta el permiso de archivos. Después activa allow-external-apps=true en ~/.termux/termux.properties y reinicia Termux. Cuando esté listo, pulsa CONTINUAR.")
             .setPositiveButton("Continuar") { _, _ -> launchPspdevInstaller() }
             .setNegativeButton("Cancelar", null).show()
     }
@@ -279,66 +279,104 @@ echo PSPDEV_LISTO
         val zip = projectFile
         if (zip == null || !zip.exists()) { status.text = "Primero elige un ZIP de proyecto."; return }
         val runId = java.util.UUID.randomUUID().toString().replace("-", "")
-        val zipName = "project-" + runId + ".zip"
-        val outName = "EBOOT-" + runId + ".PBP"
-        val rel = "${android.os.Environment.DIRECTORY_DOWNLOADS}/PSPBuilder/"
+        val zipName = "project-$runId.zip"
+        val outName = "EBOOT-$runId.PBP"
+        val logName = "build-$runId.log"
+        val exitName = "build-$runId.exit"
+        val rel = "\${android.os.Environment.DIRECTORY_DOWNLOADS}/PSPBuilder/"
+        val termuxShared = "/sdcard/Download/PSPBuilder"
+        val ubuntuShared = "/mnt/sdcard/Download/PSPBuilder"
         status.text = "Preparando ZIP para Termux…"
         Thread {
             var zipUri: Uri? = null
             var outUri: Uri? = null
-            try {
-                fun makeMediaFile(name: String, mime: String): Uri {
-                    val v = android.content.ContentValues().apply { put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name); put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mime); put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, rel) }
-                    return contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, v) ?: error("No se pudo crear $name en Descargas.")
+            var logUri: Uri? = null
+            var exitUri: Uri? = null
+
+            fun makeMediaFile(name: String, mime: String): Uri {
+                val values = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name)
+                    put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mime)
+                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, rel)
                 }
+                return contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                    ?: error("No se pudo crear $name en Descargas.")
+            }
+            fun readMediaText(uri: Uri?): String {
+                if (uri == null) return ""
+                return try { contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty() }
+                catch (_: Exception) { "" }
+            }
+
+            try {
                 zipUri = makeMediaFile(zipName, "application/zip")
-                contentResolver.openOutputStream(zipUri!!, "w").use { out -> requireNotNull(out); zip.inputStream().use { it.copyTo(out!!) } }
+                contentResolver.openOutputStream(zipUri!!, "w").use { output ->
+                    requireNotNull(output) { "No se pudo copiar el ZIP a Descargas." }
+                    zip.inputStream().use { it.copyTo(output) }
+                }
                 outUri = makeMediaFile(outName, "application/octet-stream")
-                val shared = "/mnt/sdcard/Download/PSPBuilder"
-                val logName = "build-" + runId + ".log"
-                val exitName = "build-" + runId + ".exit"
+                logUri = makeMediaFile(logName, "text/plain")
+                exitUri = makeMediaFile(exitName, "text/plain")
+
                 val ubuntuScript = """
 set -Eeuo pipefail
 export PSPDEV=/root/pspdev
-export PATH="/root/pspdev/bin:${'$'}PATH"
-test -x "${'$'}PSPDEV/bin/psp-gcc" || { echo "No se encuentra psp-gcc en ${'$'}PSPDEV/bin"; exit 10; }
-test -x "${'$'}PSPDEV/bin/psp-config" || { echo "No se encuentra psp-config en ${'$'}PSPDEV/bin"; exit 11; }
-export PSPSDK="${'$'}(${'$'}PSPDEV/bin/psp-config --pspsdk-path)"
-test -d "${'$'}PSPSDK" || { echo "PSPSDK no válido: ${'$'}PSPSDK"; exit 12; }
-echo "PSPDEV=${'$'}PSPDEV"
-echo "PSPSDK=${'$'}PSPSDK"
-echo "Compilador: ${'$'}(psp-gcc --version | head -n 1)"
-test -r "$shared/$zipName" || { echo "No se puede leer el ZIP: $shared/$zipName"; exit 13; }
+export PATH="/root/pspdev/bin:\${'$'}PATH"
+test -x "\${'$'}PSPDEV/bin/psp-gcc" || { echo "No se encuentra psp-gcc en \${'$'}PSPDEV/bin"; exit 10; }
+test -x "\${'$'}PSPDEV/bin/psp-config" || { echo "No se encuentra psp-config en \${'$'}PSPDEV/bin"; exit 11; }
+export PSPSDK="\${'$'}("\${'$'}PSPDEV/bin/psp-config" --pspsdk-path)"
+test -d "\${'$'}PSPSDK" || { echo "PSPSDK no válido: \${'$'}PSPSDK"; exit 12; }
+echo "PSPDEV=\${'$'}PSPDEV"
+echo "PSPSDK=\${'$'}PSPSDK"
+echo "Compilador: \${'$'}(psp-gcc --version | head -n 1)"
+test -r "$ubuntuShared/$zipName" || { echo "No se puede leer el ZIP: $ubuntuShared/$zipName"; exit 13; }
 W="/tmp/pspbuilder-$runId"
-rm -rf "${'$'}W"
-mkdir -p "${'$'}W"
-python3 - "$shared/$zipName" "${'$'}W" <<'PY'
+rm -rf "\${'$'}W"
+mkdir -p "\${'$'}W"
+python3 - "$ubuntuShared/$zipName" "\${'$'}W" <<'PY'
 import sys, zipfile
 archive, destination = sys.argv[1], sys.argv[2]
 with zipfile.ZipFile(archive) as z:
     for item in z.infolist():
-        name = item.filename.replace("\\\\", "/")
+        name = item.filename.replace("\\", "/")
         if name.startswith("/") or any(part == ".." for part in name.split("/")):
             raise SystemExit("Ruta insegura en ZIP: " + item.filename)
     z.extractall(destination)
 PY
-M="${'$'}(find "${'$'}W" -type f -iname Makefile -print -quit)"
-if [ -z "${'$'}M" ]; then echo "No se encontró ningún Makefile dentro del ZIP."; find "${'$'}W" -maxdepth 4 -type f | head -80; exit 14; fi
-PROJECT_DIR="${'$'}(dirname "${'$'}M")"
-echo "Makefile: ${'$'}M"
-cd "${'$'}PROJECT_DIR"
+M="\${'$'}(find "\${'$'}W" -type f -iname Makefile -print -quit)"
+if [ -z "\${'$'}M" ]; then
+    echo "No se encontró ningún Makefile dentro del ZIP."
+    find "\${'$'}W" -maxdepth 4 -type f | head -80
+    exit 14
+fi
+PROJECT_DIR="\${'$'}(dirname "\${'$'}M")"
+echo "Makefile: \${'$'}M"
+cd "\${'$'}PROJECT_DIR"
 make -j2
-E="${'$'}(find . -type f -name EBOOT.PBP -print -quit)"
-test -n "${'$'}E" || { echo "make terminó, pero no generó EBOOT.PBP."; exit 15; }
-cp "${'$'}E" "$shared/$outName"
-test -s "$shared/$outName"
+E="\${'$'}(find . -type f -name EBOOT.PBP -print -quit)"
+test -n "\${'$'}E" || { echo "make terminó, pero no generó EBOOT.PBP."; exit 15; }
+cp "\${'$'}E" "$ubuntuShared/$outName"
+test -s "$ubuntuShared/$outName"
 echo "COMPILACION_OK"
-echo "EBOOT generado: $shared/$outName"
+echo "EBOOT generado: $ubuntuShared/$outName"
 """.trimIndent()
+
                 val encodedScript = Base64.getEncoder().encodeToString(ubuntuScript.toByteArray(Charsets.UTF_8))
-                val termuxCommand = "mkdir -p '$shared'; rm -f '$shared/$exitName' '$shared/$logName' '$shared/$outName'; (printf '%s' '$encodedScript' | base64 -d | proot-distro login ubuntu -- /bin/bash) > '$shared/$logName' 2>&1; rc=\$?; echo \$rc > '$shared/$exitName'; exit \$rc"
-                runOnUiThread { status.text = "Compilando en Ubuntu local…"; log.text = "Preparando entorno PSPDEV y compilando localmente. No se usa GitHub Actions." }
-                val cmd = Intent().apply {
+                val termuxCommand = """
+set +e
+mkdir -p '$termuxShared' || exit 90
+rm -f '$termuxShared/$exitName' '$termuxShared/$logName' '$termuxShared/$outName'
+(printf '%s' '$encodedScript' | base64 -d | proot-distro login ubuntu --bind /sdcard:/mnt/sdcard -- /bin/bash -s) > '$termuxShared/$logName' 2>&1
+rc=\${'$'}?
+printf '%s\n' "\${'$'}rc" > '$termuxShared/$exitName'
+exit "\${'$'}rc"
+""".trimIndent()
+
+                runOnUiThread {
+                    status.text = "Compilando en Ubuntu local…"
+                    log.text = "Enviando el proyecto a Termux. La aplicación recogerá automáticamente el registro y el EBOOT.PBP."
+                }
+                val commandIntent = Intent().apply {
                     setClassName("com.termux", "com.termux.app.RunCommandService")
                     action = "com.termux.RUN_COMMAND"
                     putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash")
@@ -347,34 +385,49 @@ echo "EBOOT generado: $shared/$outName"
                     putExtra("com.termux.RUN_COMMAND_BACKGROUND", false)
                     putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0")
                 }
-                startService(cmd)
-                val deadline = System.currentTimeMillis() + 600000L
-                var finished = false
+                startService(commandIntent)
+
+                val deadline = System.currentTimeMillis() + 900000L
                 var exitCode: Int? = null
-                while (System.currentTimeMillis() < deadline && !finished) {
-                    val exitFile = File("$shared/$exitName")
-                    if (exitFile.isFile) {
-                        exitCode = exitFile.readText().trim().toIntOrNull()
-                        finished = exitCode != null
-                    }
-                    if (!finished) Thread.sleep(1500)
+                while (System.currentTimeMillis() < deadline && exitCode == null) {
+                    exitCode = readMediaText(exitUri).trim().toIntOrNull()
+                    if (exitCode == null) Thread.sleep(1500)
                 }
-                if (!finished) {
-                    val diagnostic = File("$shared/$logName").takeIf { it.isFile }?.readText()?.takeLast(2500).orEmpty()
-                    error("Tiempo agotado esperando a Termux. $diagnostic")
-                }
-                val buildLog = File("$shared/$logName").takeIf { it.isFile }?.readText().orEmpty()
-                if (exitCode != 0) error("La compilación falló (código $exitCode).\\n" + buildLog.takeLast(3500))
-                val builtFile = File("$shared/$outName")
-                if (!builtFile.isFile || builtFile.length() == 0L) error("Termux terminó sin generar EBOOT.PBP.\\n" + buildLog.takeLast(2500))
+                val buildLog = readMediaText(logUri)
+                if (exitCode == null) error("Termux no comunicó el final de la compilación en 15 minutos.\n\${buildLog.takeLast(3500)}")
+                if (exitCode != 0) error("La compilación falló (código $exitCode).\n\${buildLog.takeLast(5000)}")
+
+                val input = contentResolver.openInputStream(outUri!!)
+                    ?: error("Termux terminó correctamente, pero Android no pudo abrir el EBOOT.PBP.")
                 val eboot = File(cacheDir, outName)
-                builtFile.inputStream().use { input -> eboot.outputStream().use { output -> input.copyTo(output) } }
+                input.use { source -> eboot.outputStream().use { target -> source.copyTo(target) } }
+                require(eboot.isFile && eboot.length() > 0L) { "El EBOOT.PBP generado está vacío." }
                 pendingEboot = eboot
-                runOnUiThread { try { val saved = saveEbootToDownloads(eboot, "PSPBuilder"); status.text = "¡Compilación local terminada!"; log.text = "EBOOT.PBP generado en el móvil.\n$saved" } catch (e: Exception) { status.text = "Compilado, pero no se pudo guardar: ${e.message}" } }
-            } catch (e: Exception) { runOnUiThread { status.text = "Error de compilación local: ${e.message}"; log.text = "No se ha enviado el proyecto a GitHub Actions. Revisa permisos RUN_COMMAND y almacenamiento de Termux." } }
-            finally { try { zipUri?.let { contentResolver.delete(it, null, null) } } catch (_: Exception) { } }
+                runOnUiThread {
+                    try {
+                        val saved = saveEbootToDownloads(eboot, "PSPBuilder")
+                        status.text = "¡Compilación local terminada!"
+                        log.text = "EBOOT.PBP generado correctamente.\n$saved\n\n\${buildLog.takeLast(1800)}"
+                    } catch (e: Exception) {
+                        status.text = "Compilado, pero no se pudo guardar: \${e.message}"
+                        log.text = buildLog.takeLast(2500)
+                    }
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    status.text = "Error de compilación local: \${e.message ?: "error desconocido"}"
+                    log.text = readMediaText(logUri).takeLast(5000).ifBlank {
+                        "No se pudo iniciar Termux. Comprueba el permiso RUN_COMMAND y el acceso al almacenamiento compartido."
+                    }
+                }
+            } finally {
+                listOf(zipUri, outUri, logUri, exitUri).forEach { uri ->
+                    try { uri?.let { contentResolver.delete(it, null, null) } } catch (_: Exception) { }
+                }
+            }
         }.start()
     }
+
     private fun githubRequest(token: String, method: String, path: String, body: JSONObject? = null, expected: IntArray = intArrayOf(200)): String {
         val connection = (URL("https://api.github.com/repos/$repo$path").openConnection() as HttpURLConnection)
         connection.requestMethod = method
