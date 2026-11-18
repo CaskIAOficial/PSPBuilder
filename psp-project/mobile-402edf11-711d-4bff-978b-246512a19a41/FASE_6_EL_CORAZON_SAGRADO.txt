@@ -1,0 +1,25 @@
+EL SAGRADO - FASE 6: EL CORAZON SAGRADO
+
+Base: proyecto completo de la FASE 5.
+
+NOVEDADES DE HISTORIA
+- Tras completar la cadena de misiones y derrotar al Dragon de Ceniza, aparece
+  el Guardian del Corazon en las Tierras Salvajes.
+- El Guardian es el jefe final exclusivo de la historia. Tiene mucha mas vida,
+  daño y velocidad que los jefes anteriores.
+- Al derrotarlo, el jugador obtiene automaticamente el Corazon Sagrado.
+
+CORAZON SAGRADO
+- Se equipa en la ranura de pechera/armadura (ranura eq[1]).
+- Reduce el daño recibido un 70% despues de aplicar la defensa normal.
+- Aumenta el daño de ataque un 50%.
+- Reduce el coste de mana de las habilidades un 70%.
+- Reduce un 40% la velocidad al caminar.
+- Aumenta un 20% adicional la velocidad del caballo.
+- Se guarda en la ranura de armadura existente; no se cambia el formato de
+  guardado de la partida.
+
+COMPATIBILIDAD Y PRUEBAS
+- Se conserva el nombre de guardado ashen.sav y las estructuras de guardado.
+- El ZIP incluye el proyecto y recursos de fases anteriores.
+- No se ha podido compilar con PSPDEV ni probar en hardware PSP en este entorno.

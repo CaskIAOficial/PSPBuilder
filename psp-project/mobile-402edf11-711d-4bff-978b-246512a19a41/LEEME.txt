@@ -1,0 +1,26 @@
+EL SAGRADO - PROYECTO PSP
+
+FASE 10: LA CIUDAD ABANDONADA
+
+Esta versión continúa la Fase 9 y conserva sus recursos y sistema de guardado.
+
+NOVEDAD PRINCIPAL
+La tercera entrada de mazmorra de las Tierras Salvajes se convierte en la
+Ciudad Abandonada. Solo se abre después de completar la historia y obtener
+el Corazón Sagrado. Es una incursión post-historia repetible con ocho salas,
+cámaras laterales, llaves, puertas, trampas, más enemigos, más cofres y un
+campeón reforzado.
+
+CONTROLES
+Stick/cruceta: mover | X: atacar | Triángulo: habilidad | R: cambiar habilidad
+Cuadrado: poción | Círculo: hablar/interactuar | SELECT: inventario | START: pausa
+
+COMPILACIÓN
+Compila con PSPDEV/WSL usando el Makefile incluido. Copia EBOOT.PBP y los
+recursos RAW requeridos a ms0:/PSP/GAME/EL_SAGRADO/.
+
+Consulta FASE_10_LA_CIUDAD_ABANDONADA.txt para los detalles.
+Haz una copia de seguridad de ashen.sav antes de probar una nueva compilación.
+
+NOTA: el código se ha actualizado, pero esta entrega no se ha compilado ni
+probado en una PSP física desde este entorno.

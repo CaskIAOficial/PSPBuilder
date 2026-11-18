@@ -1,0 +1,37 @@
+EL SAGRADO - FASE 10: LA CIUDAD ABANDONADA
+==========================================
+
+CONTENIDO DE ESTA FASE
+----------------------
+- Se desbloquea una nueva incursión post-historia: la Ciudad Abandonada.
+- La entrada está vinculada al tercer acceso de mazmorra que ya existe en
+  las Tierras Salvajes. Antes de completar la historia, el acceso permanece
+  sellado por el Corazón Sagrado.
+- La ciudad utiliza una distribución procedural de ocho salas conectadas,
+  con corredores, cámaras laterales, llave, puerta cerrada y trampas.
+- Aumenta la presión de combate: hasta 30 enemigos y 15 cofres por incursión.
+- El campeón de la última sección tiene el triple de vida y más daño que
+  el campeón estándar de mazmorra.
+- La incursión puede repetirse para buscar botín y equipo de mayor nivel.
+- Se muestra el nombre Ciudad abandonada al entrar.
+
+CÓMO ACCEDER
+------------
+1. Carga una partida que haya completado la historia y obtenido el Corazón.
+2. Viaja a las Tierras Salvajes.
+3. Busca el tercer acceso de mazmorra (el acceso que llevaba a Minas antiguas).
+4. Entra para comenzar la Ciudad Abandonada.
+
+COMPATIBILIDAD
+--------------
+- No se añaden campos al formato ashen.sav.
+- No se cambian las misiones principales ni las banderas de jefes de historia.
+- Se conserva el resto de las zonas y el contenido de las fases anteriores.
+- El acceso queda bloqueado en partidas que todavía no hayan terminado la historia.
+
+COMPILACIÓN Y PRUEBAS
+---------------------
+El ZIP conserva el Makefile y los recursos de la Fase 9. Se ha actualizado
+el código fuente y revisado la estructura del paquete. No se ha ejecutado
+PSPDEV ni probado el juego en hardware PSP desde este entorno. Compila con
+PSPDEV/WSL y prueba la entrada con una partida que tenga el Corazón Sagrado.
