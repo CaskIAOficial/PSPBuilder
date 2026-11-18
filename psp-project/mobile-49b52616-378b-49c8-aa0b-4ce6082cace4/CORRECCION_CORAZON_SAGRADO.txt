@@ -1,0 +1,15 @@
+CORRECCION DE BONIFICACIONES - EL SAGRADO
+
+Se corrigen las bonificaciones del Corazon Sagrado:
+- Velocidad caminando: +40% (antes se habia indicado por error -40%).
+- Velocidad a caballo: +20% adicional sobre la velocidad normal a caballo.
+- Danio recibido: -70% antes de aplicar la defensa.
+- Danio de ataque normal: +50% (se conserva la bonificacion ya existente).
+- Consumo de mana: -70% (se conserva la bonificacion ya existente).
+- Hechizos ofensivos: +20% de danio mientras el Corazon Sagrado esta equipado.
+
+Los hechizos siguen seleccionandose con el sistema de habilidades existente; la
+bonificacion se aplica al hechizo ofensivo que se lance, no a la curacion.
+No se modifica la estructura de guardado ashen.sav.
+
+No se ha podido compilar con PSPDEV ni probar en hardware PSP en esta entrega.

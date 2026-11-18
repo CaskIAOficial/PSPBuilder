@@ -1,0 +1,32 @@
+EL SAGRADO - FASE 7: LA LEYENDA DEL CORAZON
+
+Base: FASE 6 CORREGIDA.
+
+NOVEDADES NARRATIVAS
+- Se incorporan pistas sobre el Corazon Sagrado en los dialogos de los NPC.
+- El sanador cuenta que el Corazon fue sellado bajo las tierras y que sus
+  guardianes impiden que caiga en manos equivocadas.
+- El herrero aporta una pista sobre la pechera que alberga la reliquia.
+- Los dialogos evolucionan segun el avance de la cadena principal de misiones.
+- La historia deja claro que las misiones y los guardianes conducen al Dragon
+  de Ceniza y, finalmente, al Guardian del Corazon.
+
+AJUSTE DE PODER DEL CORAZON SAGRADO
+- Daño recibido: 70% menos.
+- Daño de ataques: 50% mas.
+- Daño de hechizos ofensivos: 20% adicional.
+- Coste de mana de habilidades: 70% menos.
+- Velocidad caminando: 40% mas.
+- Velocidad a caballo: 20% adicional.
+
+El aumento del 50% se aplica al daño base de ataques; los hechizos ofensivos
+reciben ademas su bonificacion especifica del 20%.
+
+COMPATIBILIDAD
+- Se conserva el nombre de guardado ashen.sav y las estructuras de guardado.
+- No se han añadido variables persistentes ni cambios al formato de partida.
+- Se incluyen los recursos y archivos del proyecto completo.
+
+PRUEBAS
+- ZIP comprobado mediante test de integridad.
+- No se ha compilado con PSPDEV ni probado en hardware PSP en este entorno.
