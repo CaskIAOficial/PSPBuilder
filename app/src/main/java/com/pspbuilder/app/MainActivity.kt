@@ -64,6 +64,7 @@ class MainActivity : Activity() {
             setPadding(0, dp(8), 0, dp(14))
         }
         root.addView(projectLabel)
+        root.addView(button("INSTALAR / REPARAR PSPDEV CON TERMUX") { prepareTermuxSetup() })
         root.addView(button("ELEGIR ZIP DEL PROYECTO") { openZipPicker() })
         root.addView(button("COMPILAR EBOOT.PBP") { compileProject() }.apply {
             setTextColor(0xFF102016.toInt()); setBackgroundColor(0xFF9CE8B5.toInt())
@@ -92,6 +93,38 @@ class MainActivity : Activity() {
         text = label; isAllCaps = false; setOnClickListener { action() }
     }
 
+    private fun prepareTermuxSetup() {
+        val installed = try { packageManager.getPackageInfo("com.termux", 0); true } catch (_: Exception) { false }
+        if (!installed) {
+            AlertDialog.Builder(this).setTitle("Instalar Termux")
+                .setMessage("Termux es necesario. Se abrirá su repositorio oficial; instala la versión de GitHub y vuelve aquí.")
+                .setPositiveButton("Abrir descarga") { _, _ -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/termux/termux-app/releases"))) }
+                .setNegativeButton("Cancelar", null).show()
+            return
+        }
+        AlertDialog.Builder(this).setTitle("Preparar Termux")
+            .setMessage("Concede a PSP Builder el permiso «Ejecutar comandos en Termux» desde Ajustes > Aplicaciones > PSP Builder > Permisos. En Termux activa allow-external-apps=true en ~/.termux/termux.properties y reinicia Termux. Después pulsa CONTINUAR.")
+            .setPositiveButton("Continuar") { _, _ -> launchPspdevInstaller() }
+            .setNegativeButton("Cancelar", null).show()
+    }
+
+    private fun launchPspdevInstaller() {
+        val script = "set -e; pkg update -y; pkg install -y proot-distro curl tar; if ! proot-distro list | grep -q ubuntu; then proot-distro install ubuntu:24.04; fi; proot-distro login ubuntu -- bash -lc \"set -e; apt-get update; apt-get install -y git wget curl build-essential cmake make gcc g++ python3; cd /root; ARCH=\\$(uname -m); if [ ! -x /root/pspdev/bin/psp-gcc ]; then if [ \\$ARCH = aarch64 ]; then ASSET=pspdev-ubuntu-24.04-arm-arm64.tar.gz; elif [ \\$ARCH = x86_64 ]; then ASSET=pspdev-ubuntu-24.04-amd64.tar.gz; else echo Arquitectura-no-compatible; exit 2; fi; curl -fL https://github.com/pspdev/pspdev/releases/latest/download/\\$ASSET -o /tmp/pspdev.tar.gz; tar -xzf /tmp/pspdev.tar.gz; fi; echo export PSPDEV=/root/pspdev >> /root/.bashrc; echo export PATH=\\$PATH:/root/pspdev/bin >> /root/.bashrc; echo export PSPSDK=\\$(/root/pspdev/bin/psp-config --pspsdk-path) >> /root/.bashrc; export PSPDEV=/root/pspdev; export PATH=\\$PATH:/root/pspdev/bin; export PSPSDK=\\$(/root/pspdev/bin/psp-config --pspsdk-path); psp-gcc --version; test -f \\$PSPSDK/lib/build.mak; echo PSPDEV_LISTO\"";
+        try {
+            val intent = Intent().apply {
+                setClassName("com.termux", "com.termux.app.RunCommandService")
+                action = "com.termux.RUN_COMMAND"
+                putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash")
+                putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-lc", script))
+                putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home")
+                putExtra("com.termux.RUN_COMMAND_BACKGROUND", false)
+                putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0")
+            }
+            startService(intent)
+            status.text = "Instalador enviado a Termux. Sigue la instalación en su terminal."
+            log.text = "Preparando Ubuntu 24.04 y PSPDEV. No cierres Termux."
+        } catch (e: Exception) { status.text = "No se pudo iniciar Termux: " + (e.message ?: "comprueba permisos") }
+    }
     private fun openZipPicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE); type = "application/zip"
