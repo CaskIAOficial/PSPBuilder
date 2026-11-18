@@ -118,147 +118,24 @@ set -e
 apt-get update
 apt-get install -y git wget curl build-essential cmake make gcc g++ python3
 cd /root
-ARCH="${'(uname -m)"
+ARCH="${'$'}(uname -m)"
 if [ ! -x /root/pspdev/bin/psp-gcc ]; then
-  if [ "$ARCH" = "aarch64" ]; then ASSET="pspdev-ubuntu-24.04-arm-arm64.tar.gz";
-  elif [ "$ARCH" = "x86_64" ]; then ASSET="pspdev-ubuntu-24.04-amd64.tar.gz";
-  else echo "Arquitectura no compatible: $ARCH"; exit 2; fi
-  curl -fL "https://github.com/pspdev/pspdev/releases/latest/download/$ASSET" -o /tmp/pspdev.tar.gz
+  if [ "${'$'}ARCH" = "aarch64" ]; then ASSET="pspdev-ubuntu-24.04-arm-arm64.tar.gz";
+  elif [ "${'$'}ARCH" = "x86_64" ]; then ASSET="pspdev-ubuntu-24.04-amd64.tar.gz";
+  else echo "Arquitectura no compatible: ${'$'}ARCH"; exit 2; fi
+  curl -fL "https://github.com/pspdev/pspdev/releases/latest/download/${'$'}ASSET" -o /tmp/pspdev.tar.gz
   tar -xzf /tmp/pspdev.tar.gz
 fi
 export PSPDEV=/root/pspdev
-export PATH="$PATH:/root/pspdev/bin"
-export PSPSDK="$(/root/pspdev/bin/psp-config --pspsdk-path)"
+export PATH="${'$'}PATH:/root/pspdev/bin"
+export PSPSDK="${'$'}(/root/pspdev/bin/psp-config --pspsdk-path)"
 grep -q "PSPDEV=/root/pspdev" /root/.bashrc || cat >> /root/.bashrc <<'EOF'
 export PSPDEV=/root/pspdev
-export PATH="$PATH:/root/pspdev/bin"
-export PSPSDK="$(/root/pspdev/bin/psp-config --pspsdk-path)"
+export PATH="${'$'}PATH:/root/pspdev/bin"
+export PSPSDK="${'$'}(/root/pspdev/bin/psp-config --pspsdk-path)"
 EOF
 psp-gcc --version
-test -f "$PSPSDK/lib/build.mak"
-echo PSPDEV_LISTO
-'
-}(uname -m)"
-if [ ! -x /root/pspdev/bin/psp-gcc ]; then
-  if [ "${'ARCH" = "aarch64" ]; then ASSET="pspdev-ubuntu-24.04-arm-arm64.tar.gz";
-  elif [ "$ARCH" = "x86_64" ]; then ASSET="pspdev-ubuntu-24.04-amd64.tar.gz";
-  else echo "Arquitectura no compatible: $ARCH"; exit 2; fi
-  curl -fL "https://github.com/pspdev/pspdev/releases/latest/download/$ASSET" -o /tmp/pspdev.tar.gz
-  tar -xzf /tmp/pspdev.tar.gz
-fi
-export PSPDEV=/root/pspdev
-export PATH="$PATH:/root/pspdev/bin"
-export PSPSDK="$(/root/pspdev/bin/psp-config --pspsdk-path)"
-grep -q "PSPDEV=/root/pspdev" /root/.bashrc || cat >> /root/.bashrc <<'EOF'
-export PSPDEV=/root/pspdev
-export PATH="$PATH:/root/pspdev/bin"
-export PSPSDK="$(/root/pspdev/bin/psp-config --pspsdk-path)"
-EOF
-psp-gcc --version
-test -f "$PSPSDK/lib/build.mak"
-echo PSPDEV_LISTO
-'
-}ARCH" = "aarch64" ]; then ASSET="pspdev-ubuntu-24.04-arm-arm64.tar.gz";
-  elif [ "${'ARCH" = "x86_64" ]; then ASSET="pspdev-ubuntu-24.04-amd64.tar.gz";
-  else echo "Arquitectura no compatible: $ARCH"; exit 2; fi
-  curl -fL "https://github.com/pspdev/pspdev/releases/latest/download/$ASSET" -o /tmp/pspdev.tar.gz
-  tar -xzf /tmp/pspdev.tar.gz
-fi
-export PSPDEV=/root/pspdev
-export PATH="$PATH:/root/pspdev/bin"
-export PSPSDK="$(/root/pspdev/bin/psp-config --pspsdk-path)"
-grep -q "PSPDEV=/root/pspdev" /root/.bashrc || cat >> /root/.bashrc <<'EOF'
-export PSPDEV=/root/pspdev
-export PATH="$PATH:/root/pspdev/bin"
-export PSPSDK="$(/root/pspdev/bin/psp-config --pspsdk-path)"
-EOF
-psp-gcc --version
-test -f "$PSPSDK/lib/build.mak"
-echo PSPDEV_LISTO
-'
-}ARCH" = "x86_64" ]; then ASSET="pspdev-ubuntu-24.04-amd64.tar.gz";
-  else echo "Arquitectura no compatible: ${'ARCH"; exit 2; fi
-  curl -fL "https://github.com/pspdev/pspdev/releases/latest/download/$ASSET" -o /tmp/pspdev.tar.gz
-  tar -xzf /tmp/pspdev.tar.gz
-fi
-export PSPDEV=/root/pspdev
-export PATH="$PATH:/root/pspdev/bin"
-export PSPSDK="$(/root/pspdev/bin/psp-config --pspsdk-path)"
-grep -q "PSPDEV=/root/pspdev" /root/.bashrc || cat >> /root/.bashrc <<'EOF'
-export PSPDEV=/root/pspdev
-export PATH="$PATH:/root/pspdev/bin"
-export PSPSDK="$(/root/pspdev/bin/psp-config --pspsdk-path)"
-EOF
-psp-gcc --version
-test -f "$PSPSDK/lib/build.mak"
-echo PSPDEV_LISTO
-'
-}ARCH"; exit 2; fi
-  curl -fL "https://github.com/pspdev/pspdev/releases/latest/download/${'ASSET" -o /tmp/pspdev.tar.gz
-  tar -xzf /tmp/pspdev.tar.gz
-fi
-export PSPDEV=/root/pspdev
-export PATH="$PATH:/root/pspdev/bin"
-export PSPSDK="$(/root/pspdev/bin/psp-config --pspsdk-path)"
-grep -q "PSPDEV=/root/pspdev" /root/.bashrc || cat >> /root/.bashrc <<'EOF'
-export PSPDEV=/root/pspdev
-export PATH="$PATH:/root/pspdev/bin"
-export PSPSDK="$(/root/pspdev/bin/psp-config --pspsdk-path)"
-EOF
-psp-gcc --version
-test -f "$PSPSDK/lib/build.mak"
-echo PSPDEV_LISTO
-'
-}ASSET" -o /tmp/pspdev.tar.gz
-  tar -xzf /tmp/pspdev.tar.gz
-fi
-export PSPDEV=/root/pspdev
-export PATH="${'PATH:/root/pspdev/bin"
-export PSPSDK="$(/root/pspdev/bin/psp-config --pspsdk-path)"
-grep -q "PSPDEV=/root/pspdev" /root/.bashrc || cat >> /root/.bashrc <<'EOF'
-export PSPDEV=/root/pspdev
-export PATH="$PATH:/root/pspdev/bin"
-export PSPSDK="$(/root/pspdev/bin/psp-config --pspsdk-path)"
-EOF
-psp-gcc --version
-test -f "$PSPSDK/lib/build.mak"
-echo PSPDEV_LISTO
-'
-}PATH:/root/pspdev/bin"
-export PSPSDK="${'(/root/pspdev/bin/psp-config --pspsdk-path)"
-grep -q "PSPDEV=/root/pspdev" /root/.bashrc || cat >> /root/.bashrc <<'EOF'
-export PSPDEV=/root/pspdev
-export PATH="$PATH:/root/pspdev/bin"
-export PSPSDK="$(/root/pspdev/bin/psp-config --pspsdk-path)"
-EOF
-psp-gcc --version
-test -f "$PSPSDK/lib/build.mak"
-echo PSPDEV_LISTO
-'
-}(/root/pspdev/bin/psp-config --pspsdk-path)"
-grep -q "PSPDEV=/root/pspdev" /root/.bashrc || cat >> /root/.bashrc <<'EOF'
-export PSPDEV=/root/pspdev
-export PATH="${'PATH:/root/pspdev/bin"
-export PSPSDK="$(/root/pspdev/bin/psp-config --pspsdk-path)"
-EOF
-psp-gcc --version
-test -f "$PSPSDK/lib/build.mak"
-echo PSPDEV_LISTO
-'
-}PATH:/root/pspdev/bin"
-export PSPSDK="${'(/root/pspdev/bin/psp-config --pspsdk-path)"
-EOF
-psp-gcc --version
-test -f "$PSPSDK/lib/build.mak"
-echo PSPDEV_LISTO
-'
-}(/root/pspdev/bin/psp-config --pspsdk-path)"
-EOF
-psp-gcc --version
-test -f "${'PSPSDK/lib/build.mak"
-echo PSPDEV_LISTO
-'
-}PSPSDK/lib/build.mak"
+test -f "${'$'}PSPSDK/lib/build.mak"
 echo PSPDEV_LISTO
 '
 """.trimIndent()
