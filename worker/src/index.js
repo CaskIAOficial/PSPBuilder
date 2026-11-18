@@ -46,20 +46,39 @@ async function createAppJwt(env) {
   const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(input));
   return input + "." + b64url(new Uint8Array(signature));
 }
+let cachedInstallationToken = null;
+let cachedInstallationTokenExpiresAt = 0;
+let installationTokenPromise = null;
+
+async function getInstallationToken(env) {
+  if (cachedInstallationToken && Date.now() < cachedInstallationTokenExpiresAt - 5 * 60 * 1000) {
+    return cachedInstallationToken;
+  }
+  if (!installationTokenPromise) {
+    installationTokenPromise = (async () => {
+      const jwt = await createAppJwt(env);
+      const response = await fetch(API + "/app/installations/" + env.GITHUB_INSTALLATION_ID + "/access_tokens", {
+        method: "POST",
+        headers: { "User-Agent": "PSPBuilder-Cloudflare-Worker", Authorization: "Bearer " + jwt, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" }
+      });
+      if (!response.ok) throw new Error("GitHub App no pudo obtener el token de instalación: " + response.status + " " + await response.text());
+      const data = await response.json();
+      cachedInstallationToken = data.token;
+      cachedInstallationTokenExpiresAt = data.expires_at ? Date.parse(data.expires_at) : Date.now() + 50 * 60 * 1000;
+      return cachedInstallationToken;
+    })().finally(() => { installationTokenPromise = null; });
+  }
+  return installationTokenPromise;
+}
+
 async function github(env, path, options = {}) {
-  const jwt = await createAppJwt(env);
-  const tokenResponse = await fetch(API + "/app/installations/" + env.GITHUB_INSTALLATION_ID + "/access_tokens", {
-    method: "POST",
-    headers: { "User-Agent": "PSPBuilder-Cloudflare-Worker", Authorization: "Bearer " + jwt, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" }
-  });
-  if (!tokenResponse.ok) throw new Error("GitHub App no pudo obtener el token de instalación: " + tokenResponse.status + " " + await tokenResponse.text());
-  const installation = await tokenResponse.json();
+  const token = await getInstallationToken(env);
   return fetch(API + "/repos/" + OWNER + "/" + REPO + path, {
     ...options,
     headers: {
       "User-Agent": "PSPBuilder-Cloudflare-Worker",
       Accept: "application/vnd.github+json",
-      Authorization: "Bearer " + installation.token,
+      Authorization: "Bearer " + token,
       "X-GitHub-Api-Version": "2022-11-28",
       ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...(options.headers || {})
@@ -104,13 +123,18 @@ export default {
           if (size > 900 * 1024 || total > 20 * 1024 * 1024)
             return json({ error: "PROJECT_TOO_LARGE", message: "Límite: 20 MB en total y 900 KB por archivo." }, 413, cors);
         }
-        for (const file of files) {
-          const path = projectPath + "/" + file.path.split("/").map(encodeURIComponent).join("/");
-          const response = await github(env, "/contents/" + path, {
-            method: "PUT",
-            body: JSON.stringify({ message: "PSP Builder: importar " + file.path, content: file.content, branch: BRANCH })
-          });
-          if (!response.ok) throw new Error("No se pudo subir " + file.path + " a GitHub (" + response.status + "): " + await response.text());
+        // Subir en lotes pequeños: reduce el tiempo total sin saturar la API de GitHub.
+        for (let i = 0; i < files.length; i += 4) {
+          const batch = files.slice(i, i + 4);
+          const results = await Promise.all(batch.map(async file => {
+            const path = projectPath + "/" + file.path.split("/").map(encodeURIComponent).join("/");
+            const response = await github(env, "/contents/" + path, {
+              method: "PUT",
+              body: JSON.stringify({ message: "PSP Builder: importar " + file.path, content: file.content, branch: BRANCH })
+            });
+            if (!response.ok) throw new Error("No se pudo subir " + file.path + " a GitHub (" + response.status + "): " + await response.text());
+            return file.path;
+          }));
         }
         const dispatch = await github(env, "/actions/workflows/psp-build.yml/dispatches", {
           method: "POST",
