@@ -109,7 +109,36 @@ class MainActivity : Activity() {
     }
 
     private fun launchPspdevInstaller() {
-        val script = "set -e; pkg update -y; pkg install -y proot-distro curl tar; if ! proot-distro list | grep -q ubuntu; then proot-distro install ubuntu:24.04; fi; proot-distro login ubuntu -- bash -lc \"set -e; apt-get update; apt-get install -y git wget curl build-essential cmake make gcc g++ python3; cd /root; ARCH=\\$(uname -m); if [ ! -x /root/pspdev/bin/psp-gcc ]; then if [ \\$ARCH = aarch64 ]; then ASSET=pspdev-ubuntu-24.04-arm-arm64.tar.gz; elif [ \\$ARCH = x86_64 ]; then ASSET=pspdev-ubuntu-24.04-amd64.tar.gz; else echo Arquitectura-no-compatible; exit 2; fi; curl -fL https://github.com/pspdev/pspdev/releases/latest/download/\\$ASSET -o /tmp/pspdev.tar.gz; tar -xzf /tmp/pspdev.tar.gz; fi; echo export PSPDEV=/root/pspdev >> /root/.bashrc; echo export PATH=\\$PATH:/root/pspdev/bin >> /root/.bashrc; echo export PSPSDK=\\$(/root/pspdev/bin/psp-config --pspsdk-path) >> /root/.bashrc; export PSPDEV=/root/pspdev; export PATH=\\$PATH:/root/pspdev/bin; export PSPSDK=\\$(/root/pspdev/bin/psp-config --pspsdk-path); psp-gcc --version; test -f \\$PSPSDK/lib/build.mak; echo PSPDEV_LISTO\"";
+        val script = """
+pkg update -y
+pkg install -y proot-distro curl tar
+if ! proot-distro list | grep -q ubuntu; then proot-distro install ubuntu:24.04; fi
+proot-distro login ubuntu -- bash -lc '
+set -e
+apt-get update
+apt-get install -y git wget curl build-essential cmake make gcc g++ python3
+cd /root
+ARCH="$(uname -m)"
+if [ ! -x /root/pspdev/bin/psp-gcc ]; then
+  if [ "$ARCH" = "aarch64" ]; then ASSET="pspdev-ubuntu-24.04-arm-arm64.tar.gz";
+  elif [ "$ARCH" = "x86_64" ]; then ASSET="pspdev-ubuntu-24.04-amd64.tar.gz";
+  else echo "Arquitectura no compatible: $ARCH"; exit 2; fi
+  curl -fL "https://github.com/pspdev/pspdev/releases/latest/download/$ASSET" -o /tmp/pspdev.tar.gz
+  tar -xzf /tmp/pspdev.tar.gz
+fi
+export PSPDEV=/root/pspdev
+export PATH="$PATH:/root/pspdev/bin"
+export PSPSDK="$(/root/pspdev/bin/psp-config --pspsdk-path)"
+grep -q "PSPDEV=/root/pspdev" /root/.bashrc || cat >> /root/.bashrc <<'EOF'
+export PSPDEV=/root/pspdev
+export PATH="$PATH:/root/pspdev/bin"
+export PSPSDK="$(/root/pspdev/bin/psp-config --pspsdk-path)"
+EOF
+psp-gcc --version
+test -f "$PSPSDK/lib/build.mak"
+echo PSPDEV_LISTO
+'
+""".trimIndent()
         try {
             val intent = Intent().apply {
                 setClassName("com.termux", "com.termux.app.RunCommandService")
@@ -123,8 +152,11 @@ class MainActivity : Activity() {
             startService(intent)
             status.text = "Instalador enviado a Termux. Sigue la instalación en su terminal."
             log.text = "Preparando Ubuntu 24.04 y PSPDEV. No cierres Termux."
-        } catch (e: Exception) { status.text = "No se pudo iniciar Termux: " + (e.message ?: "comprueba permisos") }
+        } catch (e: Exception) {
+            status.text = "No se pudo iniciar Termux: ${e.message ?: "comprueba permisos"}"
+        }
     }
+
     private fun openZipPicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE); type = "application/zip"
