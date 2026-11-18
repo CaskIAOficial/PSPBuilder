@@ -458,7 +458,7 @@ class MainActivity : Activity() {
                             Thread.sleep((networkAttempts * 3000L).coerceAtMost(15000L))
                         }
                     }
-                    val tokenResponse = result
+                    val tokenResponse = result ?: throw IllegalStateException("No se recibió respuesta de GitHub.")
                     val token = tokenResponse.optString("access_token")
                     if (token.isNotBlank()) {
                         saveToken(token)
