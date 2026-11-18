@@ -486,7 +486,7 @@ exit "${'$'}rc"
                     }
                     if (exitCode == null) Thread.sleep(1000)
                 }
-                val buildLog = readMediaText(logUri)
+                val buildLog = readMediaText(logName, logUri)
                 if (termuxErr != null && termuxErr != -1) {
                     error("Termux no pudo iniciar el comando (error $termuxErr). $termuxErrMsg")
                 }
@@ -515,7 +515,7 @@ exit "${'$'}rc"
             } catch (e: Exception) {
                 runOnUiThread {
                     status.text = "Error de compilación local: ${e.message ?: "error desconocido"}"
-                    log.text = readMediaText(logUri).takeLast(5000).ifBlank { e.message ?: "error desconocido" }
+                    log.text = readMediaText(logName, logUri).takeLast(5000).ifBlank { e.message ?: "error desconocido" }
                 }
             } finally {
                 listOf(zipUri, outUri, logUri, exitUri).forEach { uri ->
