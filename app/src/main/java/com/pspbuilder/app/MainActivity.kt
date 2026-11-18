@@ -391,7 +391,7 @@ exit "${'$'}rc"
                     putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-s"))
                     putExtra("com.termux.RUN_COMMAND_STDIN", termuxCommand)
                     putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home")
-                    putExtra("com.termux.RUN_COMMAND_BACKGROUND", false)
+                    putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
                     putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0")
                 }
                 startService(commandIntent)
