@@ -2,6 +2,7 @@ package com.pspbuilder.app
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.PendingIntent
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -384,6 +385,22 @@ exit "${'$'}rc"
                     status.text = "Compilando en Ubuntu local…"
                     log.text = "Enviando el proyecto a Termux. La aplicación recogerá automáticamente el registro y el EBOOT.PBP."
                 }
+                val resultPrefs = getSharedPreferences("termux_results", MODE_PRIVATE)
+                resultPrefs.edit()
+                    .remove("${runId}_received")
+                    .remove("${runId}_exit_code")
+                    .remove("${runId}_err")
+                    .remove("${runId}_errmsg")
+                    .apply()
+
+                val resultIntent = Intent(this@MainActivity, TermuxResultService::class.java)
+                    .putExtra("run_id", runId)
+                val pendingFlags = PendingIntent.FLAG_ONE_SHOT or
+                    (if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0)
+                val resultPendingIntent = PendingIntent.getService(
+                    this@MainActivity, runId.hashCode() and 0x7fffffff, resultIntent, pendingFlags
+                )
+
                 val commandIntent = Intent().apply {
                     setClassName("com.termux", "com.termux.app.RunCommandService")
                     action = "com.termux.RUN_COMMAND"
@@ -391,18 +408,32 @@ exit "${'$'}rc"
                     putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-s"))
                     putExtra("com.termux.RUN_COMMAND_STDIN", termuxCommand)
                     putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home")
-                    putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
+                    putExtra("com.termux.RUN_COMMAND_BACKGROUND", false)
                     putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0")
+                    putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "Compilar proyecto PSP")
+                    putExtra("com.termux.RUN_COMMAND_COMMAND_DESCRIPTION", "PSP Builder ejecuta la compilación local en Ubuntu.")
+                    putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", resultPendingIntent)
                 }
                 startService(commandIntent)
 
                 val deadline = System.currentTimeMillis() + 900000L
                 var exitCode: Int? = null
+                var termuxErr: Int? = null
+                var termuxErrMsg = ""
                 while (System.currentTimeMillis() < deadline && exitCode == null) {
-                    exitCode = readMediaText(exitUri).trim().toIntOrNull()
-                    if (exitCode == null) Thread.sleep(1500)
+                    if (resultPrefs.getBoolean("${runId}_received", false)) {
+                        exitCode = resultPrefs.getInt("${runId}_exit_code", -999)
+                        termuxErr = resultPrefs.getInt("${runId}_err", 0)
+                        termuxErrMsg = resultPrefs.getString("${runId}_errmsg", "").orEmpty()
+                    } else {
+                        exitCode = readMediaText(exitUri).trim().toIntOrNull()
+                    }
+                    if (exitCode == null) Thread.sleep(1000)
                 }
                 val buildLog = readMediaText(logUri)
+                if (termuxErr != null && termuxErr != -1) {
+                    error("Termux no pudo iniciar el comando (error $termuxErr). $termuxErrMsg")
+                }
                 if (exitCode == null) error("Termux no comunicó el final de la compilación en 15 minutos.\n${buildLog.takeLast(3500)}")
                 if (exitCode != 0) error("La compilación falló (código $exitCode).\n${buildLog.takeLast(5000)}")
 
