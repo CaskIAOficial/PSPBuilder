@@ -278,72 +278,43 @@ echo PSPDEV_LISTO
     private fun compileProject() {
         val zip = projectFile
         if (zip == null || !zip.exists()) { status.text = "Primero elige un ZIP de proyecto."; return }
-        val token = loadToken()
-        if (token.isNullOrBlank()) { authorizeGitHub(); return }
-        val folder = extractedDir ?: runCatching { extractProject(zip) }.getOrElse {
-            status.text = "No se pudo preparar el ZIP: ${it.message}"; return
-        }
-        extractedDir = folder
-        val makefiles = folder.walkTopDown().filter { it.isFile && it.name.equals("Makefile", true) }.toList()
-        if (makefiles.size != 1) { status.text = "El proyecto debe contener exactamente un Makefile."; return }
-        val projectRoot = makefiles.single().parentFile ?: folder
-        val files = projectRoot.walkTopDown().filter { it.isFile }.toList()
-        if (files.isEmpty() || files.size > 100) { status.text = "El proyecto debe tener entre 1 y 100 archivos."; return }
-        val total = files.sumOf { it.length() }
-        if (total > 20L * 1024L * 1024L || files.any { it.length() > 900L * 1024L }) { status.text = "Límite: 20 MB en total y 900 KB por archivo."; return }
-        status.text = "Conectando directamente con GitHub…"
-        log.text = "Proyecto: ${projectRoot.name}\nArchivos: ${files.size}\nTamaño: ${total / 1024} KB\nSin servidor intermedio."
+        val runId = java.util.UUID.randomUUID().toString().replace("-", "")
+        val zipName = "project-" + runId + ".zip"
+        val outName = "EBOOT-" + runId + ".PBP"
+        val shared = "/data/data/com.termux/files/home/storage/shared/Download/PSPBuilder"
+        status.text = "Preparando compilación local en Termux…"
         Thread {
             try {
-                val requestId = java.util.UUID.randomUUID().toString()
-                val projectPath = "psp-project/mobile-$requestId"
-                val treeEntries = org.json.JSONArray()
-                var uploaded = 0
-                files.chunked(6).forEach { batch ->
-                    val batchResults = batch.map { file ->
-                        val relative = file.relativeTo(projectRoot).invariantSeparatorsPath
-                        val encoded = Base64.getEncoder().encodeToString(file.readBytes())
-                        val body = JSONObject().put("content", encoded).put("encoding", "base64")
-                        val blob = JSONObject(githubRequest(token, "POST", "/git/blobs", body, intArrayOf(201)))
-                        Triple(relative, blob.getString("sha"), file)
-                    }
-                    batchResults.forEach { (relative, sha, _) ->
-                        treeEntries.put(JSONObject().put("path", "$projectPath/$relative").put("mode", "100644").put("type", "blob").put("sha", sha))
-                        uploaded++
-                    }
-                    runOnUiThread { status.text = "Subiendo directamente a GitHub: $uploaded/${files.size}" }
+                val dir = File(shared)
+                if (!dir.exists() && !dir.mkdirs()) error("No se puede acceder al almacenamiento compartido de Termux. Ejecuta termux-setup-storage.")
+                val inputZip = File(dir, zipName)
+                zip.copyTo(inputZip, overwrite = true)
+                val output = File(dir, outName)
+                val script = "set -e; proot-distro login ubuntu --bind \"$shared:/mnt/pspbuilder\" -- bash -lc \"export PSPDEV=/root/pspdev; export PATH=/root/pspdev/bin:\$PATH; export PSPSDK=\$(/root/pspdev/bin/psp-config --pspsdk-path); test -x /root/pspdev/bin/psp-gcc; apt-get install -y unzip; W=/tmp/pspbuilder-$runId; mkdir -p \\\"\$W\\\"; unzip -q -o /mnt/pspbuilder/$zipName -d \\\"\$W\\\"; M=\$(find \\\"\$W\\\" -type f -iname Makefile -print -quit); test -n \\\"\$M\\\"; cd \\\"\$(dirname \\\"\$M\\\")\\\"; make; E=\$(find . -type f -name EBOOT.PBP -print -quit); test -n \\\"\$E\\\"; cp \\\"\$E\\\" /mnt/pspbuilder/$outName\" "
+                runOnUiThread { status.text = "Compilando localmente en Ubuntu…"; log.text = "El ZIP se ha transferido a Termux. Ejecutando make con PSPDEV." }
+                val intent = Intent().apply {
+                    setClassName("com.termux", "com.termux.app.RunCommandService")
+                    action = "com.termux.RUN_COMMAND"
+                    putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash")
+                    putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-lc", script))
+                    putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home")
+                    putExtra("com.termux.RUN_COMMAND_BACKGROUND", false)
+                    putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0")
                 }
-                val ref = JSONObject(githubRequest(token, "GET", "/git/ref/heads/$branch"))
-                val parentSha = ref.getJSONObject("object").getString("sha")
-                val parent = JSONObject(githubRequest(token, "GET", "/git/commits/$parentSha"))
-                val baseTree = parent.getJSONObject("tree").getString("sha")
-                val tree = JSONObject(githubRequest(token, "POST", "/git/trees", JSONObject().put("base_tree", baseTree).put("tree", treeEntries), intArrayOf(201)))
-                val commitBody = JSONObject().put("message", "PSP Builder: subir proyecto $requestId").put("tree", tree.getString("sha")).put("parents", org.json.JSONArray().put(parentSha))
-                val commit = JSONObject(githubRequest(token, "POST", "/git/commits", commitBody, intArrayOf(201)))
-                githubRequest(token, "PATCH", "/git/refs/heads/$branch", JSONObject().put("sha", commit.getString("sha")).put("force", false))
-                val startedAt = System.currentTimeMillis()
-                val dispatch = JSONObject().put("ref", branch).put("inputs", JSONObject().put("request_id", requestId).put("project_path", projectPath))
-                githubRequest(token, "POST", "/actions/workflows/psp-build.yml/dispatches", dispatch, intArrayOf(204))
-                runOnUiThread { status.text = "Proyecto subido. GitHub Actions está compilando con PSPDEV…" }
-                val runId = waitForWorkflow(token, startedAt)
-                runOnUiThread { status.text = "Compilación terminada. Descargando EBOOT.PBP desde GitHub…" }
-                val artifactId = waitForArtifact(token, runId)
-                val eboot = extractEboot(downloadArtifact(token, artifactId))
+                startService(intent)
+                val deadline = System.currentTimeMillis() + 600000L
+                while (System.currentTimeMillis() < deadline && (!output.exists() || output.length() == 0L)) Thread.sleep(2000)
+                if (!output.exists() || output.length() == 0L) error("No se generó EBOOT.PBP. Comprueba Termux, Ubuntu y PSPDEV.")
+                val eboot = File(cacheDir, outName)
+                output.copyTo(eboot, overwrite = true)
                 pendingEboot = eboot
                 runOnUiThread {
-                    try {
-                        val gameFolderName = getGameFolderName(projectRoot)
-                        val saved = saveEbootToDownloads(eboot, gameFolderName)
-                        status.text = "¡Compilación terminada! EBOOT.PBP guardado en Descargas/$gameFolderName/"
-                        log.text = "Compilación correcta.\n$saved"
-                    } catch (e: Exception) { status.text = "Compilado, pero no se pudo guardar automáticamente: ${e.message}" }
+                    try { val saved = saveEbootToDownloads(eboot, "PSPBuilder"); status.text = "¡Compilación local terminada!"; log.text = "EBOOT.PBP generado en el móvil.\n$saved" }
+                    catch (e: Exception) { status.text = "Compilado, pero no se pudo guardar: ${e.message}" }
                 }
-            } catch (e: Exception) {
-                runOnUiThread { status.text = "Error de GitHub: ${e.message ?: "fallo desconocido"}"; log.text = "No se ha podido completar la compilación.\n${e.message}" }
-            }
+            } catch (e: Exception) { runOnUiThread { status.text = "Error de compilación local: ${e.message}"; log.text = "No se ha enviado el proyecto a GitHub Actions." } }
         }.start()
     }
-
     private fun githubRequest(token: String, method: String, path: String, body: JSONObject? = null, expected: IntArray = intArrayOf(200)): String {
         val connection = (URL("https://api.github.com/repos/$repo$path").openConnection() as HttpURLConnection)
         connection.requestMethod = method
