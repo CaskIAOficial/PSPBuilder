@@ -363,6 +363,7 @@ echo "EBOOT generado: $ubuntuShared/$outName"
 """.trimIndent()
 
                 val termuxCommand = """
+echo "PSP Builder: comando recibido por Termux"
 set +e
 rc=0
 if ! mkdir -p '$termuxShared'; then
