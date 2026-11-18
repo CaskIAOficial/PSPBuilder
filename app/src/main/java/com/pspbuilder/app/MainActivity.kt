@@ -395,7 +395,7 @@ if ! mkdir -p '$termuxShared'; then
   echo "No se pudo crear $termuxShared (¿termux-setup-storage?)"
   rc=90
 else
-  printf 'TERMUX_RECIBIDO\\n' > '$termuxShared/$logName' || rc=91
+  printf 'TERMUX_RECIBIDO\n' > '$termuxShared/$logName' || rc=91
   : > '$termuxShared/$exitName' || rc=92
   if [ "${'$'}rc" -eq 0 ]; then
     proot-distro login ubuntu -- /bin/bash -s >> '$termuxShared/$logName' 2>&1 <<'PSPBUILDER_UBUNTU_SCRIPT'
@@ -406,7 +406,7 @@ PSPBUILDER_UBUNTU_SCRIPT
     echo "No se pudo escribir el log/exit en $termuxShared (código ${'$'}rc)"
   fi
 fi
-printf '%s\\n' "${'$'}rc" > '$termuxShared/$exitName' 2>/dev/null || true
+printf '%s\n' "${'$'}rc" > '$termuxShared/$exitName' 2>/dev/null || true
 tail -c 3000 '$termuxShared/$logName' 2>/dev/null || true
 echo "PSPBUILDER_RC=${'$'}rc"
 exit "${'$'}rc"
@@ -462,7 +462,7 @@ exit "${'$'}rc"
                         termuxErr = resultPrefs.getInt("${runId}_err", 0)
                         termuxErrMsg = resultPrefs.getString("${runId}_errmsg", "").orEmpty()
                         termuxStdout = resultPrefs.getString("${runId}_stdout", "").orEmpty()
-                        if (termuxErr != -1) termuxErrMsg = (termuxErrMsg + "\\n" + resultPrefs.getString("${runId}_stderr", "").orEmpty()).trim()
+                        if (termuxErr != -1) termuxErrMsg = (termuxErrMsg + "\n" + resultPrefs.getString("${runId}_stderr", "").orEmpty()).trim()
                     } else {
                         exitCode = readMediaText(exitUri).trim().toIntOrNull()
                         if (exitCode == null && !sawSign && readMediaText(logUri).contains("TERMUX_RECIBIDO")) {
