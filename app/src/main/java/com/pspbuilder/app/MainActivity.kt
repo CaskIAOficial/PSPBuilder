@@ -365,7 +365,8 @@ echo "EBOOT generado: $ubuntuShared/$outName"
                 val termuxCommand = """
 set +e
 mkdir -p '$termuxShared' || exit 90
-rm -f '$termuxShared/$exitName' '$termuxShared/$logName' '$termuxShared/$outName'
+: > '$termuxShared/$logName' || exit 91
+: > '$termuxShared/$exitName' || exit 92
 (printf '%s' '$encodedScript' | base64 -d | proot-distro login ubuntu --bind /sdcard:/mnt/sdcard -- /bin/bash -s) > '$termuxShared/$logName' 2>&1
 rc=${'$'}?
 printf '%s\n' "${'$'}rc" > '$termuxShared/$exitName'
