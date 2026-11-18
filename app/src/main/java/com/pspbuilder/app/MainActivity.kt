@@ -109,6 +109,28 @@ class MainActivity : Activity() {
             .setNegativeButton("Cancelar", null).show()
     }
 
+    private val termuxPermission = "com.termux.permission.RUN_COMMAND"
+
+    /** Envía un Intent RUN_COMMAND a Termux y devuelve un error visible si Android lo rechaza. */
+    private fun sendToTermux(intent: Intent): String? {
+        try { packageManager.getPackageInfo("com.termux", 0) }
+        catch (_: Exception) { return "Termux no está instalado (usa la versión de GitHub o F-Droid)." }
+        if (checkSelfPermission(termuxPermission) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            runOnUiThread { requestPermissions(arrayOf(termuxPermission), 2001) }
+            return "Falta el permiso «Ejecutar comandos en Termux». Concédelo y vuelve a pulsar."
+        }
+        return try {
+            val component = startService(intent)
+            if (component == null) "Android no encontró el servicio RunCommandService de Termux." else null
+        } catch (e: SecurityException) {
+            "Android rechazó el envío a Termux: ${e.message}"
+        } catch (e: IllegalStateException) {
+            "Android bloqueó el inicio del servicio de Termux: ${e.message}"
+        } catch (e: Exception) {
+            "No se pudo enviar el comando a Termux: ${e.message}"
+        }
+    }
+
     private fun launchPspdevInstaller() {
         val script = """
 pkg update -y
@@ -150,9 +172,11 @@ echo PSPDEV_LISTO
                 putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
                 putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0")
             }
-            startService(intent)
-            status.text = "Instalador enviado a Termux. Sigue la instalación en su terminal."
-            log.text = "Preparando Ubuntu 24.04 y PSPDEV. No cierres Termux."
+            val sendError = sendToTermux(intent)
+            if (sendError != null) status.text = sendError else {
+                status.text = "Instalador enviado a Termux. Sigue la instalación en su terminal."
+                log.text = "Preparando Ubuntu 24.04 y PSPDEV. No cierres Termux."
+            }
         } catch (e: Exception) {
             status.text = "No se pudo iniciar Termux: ${e.message ?: "comprueba permisos"}"
         }
@@ -362,23 +386,29 @@ echo "COMPILACION_OK"
 echo "EBOOT generado: $ubuntuShared/$outName"
 """.trimIndent()
 
+                // Termux 0.118.x solo procesa RUN_COMMAND_STDIN en background. Pasamos el script con bash -c.
                 val termuxCommand = """
 echo "PSP Builder: comando recibido por Termux"
 set +e
 rc=0
 if ! mkdir -p '$termuxShared'; then
+  echo "No se pudo crear $termuxShared (¿termux-setup-storage?)"
   rc=90
 else
-  : > '$termuxShared/$logName' || rc=91
+  printf 'TERMUX_RECIBIDO\\n' > '$termuxShared/$logName' || rc=91
   : > '$termuxShared/$exitName' || rc=92
   if [ "${'$'}rc" -eq 0 ]; then
-    proot-distro login ubuntu -- /bin/bash -s <<'PSPBUILDER_UBUNTU_SCRIPT' > '$termuxShared/$logName' 2>&1
+    proot-distro login ubuntu -- /bin/bash -s >> '$termuxShared/$logName' 2>&1 <<'PSPBUILDER_UBUNTU_SCRIPT'
 $ubuntuScript
 PSPBUILDER_UBUNTU_SCRIPT
     rc=$?
+  else
+    echo "No se pudo escribir el log/exit en $termuxShared (código ${'$'}rc)"
   fi
 fi
-printf '%s\n' "${'$'}rc" > '$termuxShared/$exitName' 2>/dev/null || true
+printf '%s\\n' "${'$'}rc" > '$termuxShared/$exitName' 2>/dev/null || true
+tail -c 3000 '$termuxShared/$logName' 2>/dev/null || true
+echo "PSPBUILDER_RC=${'$'}rc"
 exit "${'$'}rc"
 """.trimIndent()
 
@@ -392,13 +422,15 @@ exit "${'$'}rc"
                     .remove("${runId}_exit_code")
                     .remove("${runId}_err")
                     .remove("${runId}_errmsg")
+                    .remove("${runId}_stdout")
+                    .remove("${runId}_stderr")
                     .apply()
 
-                val resultIntent = Intent(this@MainActivity, TermuxResultService::class.java)
+                val resultIntent = Intent(this@MainActivity, TermuxResultReceiver::class.java)
                     .putExtra("run_id", runId)
-                val pendingFlags = PendingIntent.FLAG_ONE_SHOT or
+                val pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT or
                     (if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0)
-                val resultPendingIntent = PendingIntent.getService(
+                val resultPendingIntent = PendingIntent.getBroadcast(
                     this@MainActivity, runId.hashCode() and 0x7fffffff, resultIntent, pendingFlags
                 )
 
@@ -406,28 +438,40 @@ exit "${'$'}rc"
                     setClassName("com.termux", "com.termux.app.RunCommandService")
                     action = "com.termux.RUN_COMMAND"
                     putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash")
-                    putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-s"))
-                    putExtra("com.termux.RUN_COMMAND_STDIN", termuxCommand)
+                    putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-c", termuxCommand))
                     putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home")
-                    putExtra("com.termux.RUN_COMMAND_BACKGROUND", false)
-                    putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0")
+                    putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
                     putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "Compilar proyecto PSP")
                     putExtra("com.termux.RUN_COMMAND_COMMAND_DESCRIPTION", "PSP Builder ejecuta la compilación local en Ubuntu.")
                     putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", resultPendingIntent)
                 }
-                startService(commandIntent)
+                val sendError = sendToTermux(commandIntent)
+                if (sendError != null) error(sendError)
 
-                val deadline = System.currentTimeMillis() + 900000L
+                val startedAt = System.currentTimeMillis()
+                val deadline = startedAt + 900000L
+                val firstSignDeadline = startedAt + 120000L
                 var exitCode: Int? = null
                 var termuxErr: Int? = null
                 var termuxErrMsg = ""
+                var termuxStdout = ""
+                var sawSign = false
                 while (System.currentTimeMillis() < deadline && exitCode == null) {
                     if (resultPrefs.getBoolean("${runId}_received", false)) {
                         exitCode = resultPrefs.getInt("${runId}_exit_code", -999)
                         termuxErr = resultPrefs.getInt("${runId}_err", 0)
                         termuxErrMsg = resultPrefs.getString("${runId}_errmsg", "").orEmpty()
+                        termuxStdout = resultPrefs.getString("${runId}_stdout", "").orEmpty()
+                        if (termuxErr != -1) termuxErrMsg = (termuxErrMsg + "\\n" + resultPrefs.getString("${runId}_stderr", "").orEmpty()).trim()
                     } else {
                         exitCode = readMediaText(exitUri).trim().toIntOrNull()
+                        if (exitCode == null && !sawSign && readMediaText(logUri).contains("TERMUX_RECIBIDO")) {
+                            sawSign = true
+                            runOnUiThread { status.text = "Termux recibió el comando. Compilando en Ubuntu local…" }
+                        }
+                        if (exitCode == null && !sawSign && System.currentTimeMillis() > firstSignDeadline) {
+                            error("Termux no ejecutó el comando en 2 minutos. Comprueba allow-external-apps=true, el permiso RUN_COMMAND y termux-setup-storage.")
+                        }
                     }
                     if (exitCode == null) Thread.sleep(1000)
                 }
@@ -436,7 +480,7 @@ exit "${'$'}rc"
                     error("Termux no pudo iniciar el comando (error $termuxErr). $termuxErrMsg")
                 }
                 if (exitCode == null) error("Termux no comunicó el final de la compilación en 15 minutos.\n${buildLog.takeLast(3500)}")
-                if (exitCode != 0) error("La compilación falló (código $exitCode).\n${buildLog.takeLast(5000)}")
+                if (exitCode != 0) error("La compilación falló (código $exitCode).\n${buildLog.takeLast(5000).ifBlank { termuxStdout.takeLast(3000) }}")
 
                 val input = contentResolver.openInputStream(outUri!!)
                     ?: error("Termux terminó correctamente, pero Android no pudo abrir el EBOOT.PBP.")
@@ -457,9 +501,7 @@ exit "${'$'}rc"
             } catch (e: Exception) {
                 runOnUiThread {
                     status.text = "Error de compilación local: ${e.message ?: "error desconocido"}"
-                    log.text = readMediaText(logUri).takeLast(5000).ifBlank {
-                        "No se pudo iniciar Termux. Comprueba el permiso RUN_COMMAND y el acceso al almacenamiento compartido."
-                    }
+                    log.text = readMediaText(logUri).takeLast(5000).ifBlank { e.message ?: "error desconocido" }
                 }
             } finally {
                 listOf(zipUri, outUri, logUri, exitUri).forEach { uri ->
