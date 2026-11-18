@@ -45,7 +45,7 @@ jobs:
             -v "$GITHUB_WORKSPACE/$PROJECT_PATH:/source" \
             -w /source \
             pspdev/pspdev:latest \
-            /bin/bash -c 'set -e; echo "PSPDEV=$PSPDEV"; command -v psp-config; psp-config --pspsdk-path; make clean || true; make -j2'
+            /bin/bash -c 'set -e; echo "PSPDEV=$PSPDEV"; command -v psp-config; SDK_PATH="$(psp-config --pspsdk-path)"; echo "PSPSDK=$SDK_PATH"; if [ ! -f "$SDK_PATH/build.mak" ] && [ -f "$SDK_PATH/lib/build.mak" ]; then ln -s "$SDK_PATH/lib/build.mak" "$SDK_PATH/build.mak"; fi; test -f "$SDK_PATH/build.mak" || { echo "No se encuentra build.mak dentro de $SDK_PATH"; find /usr/local/pspdev -name build.mak -print; exit 1; }; make clean || true; make -j2'
 
       - name: Verify EBOOT.PBP
         env:
