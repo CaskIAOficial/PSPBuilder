@@ -373,7 +373,7 @@ proot-distro login ubuntu -- /bin/bash -s >> '$termuxShared/$logName' 2>&1 <<'PS
 $ubuntuScript
 PSPBUILDER_UBUNTU_SCRIPT
 rc=$?
-printf '%s\n' "${' > '$termuxShared/$exitName'
+printf '%s\n' "${'$'}rc" > '$termuxShared/$exitName'
 exit "$rc"
 """.trimIndent()
 
@@ -737,7 +737,7 @@ exit "$rc"
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 }
 }rc" > '$termuxShared/$exitName'
-exit "${'
+exit "${'$'}rc"
 """.trimIndent()
 
                 runOnUiThread {
