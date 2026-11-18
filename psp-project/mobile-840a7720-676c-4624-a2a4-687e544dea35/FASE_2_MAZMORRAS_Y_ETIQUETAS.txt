@@ -1,0 +1,23 @@
+EL SAGRADO — FASE 2: MAZMORRAS Y ETIQUETAS
+==========================================
+
+CAMBIOS INCLUIDOS
+-----------------
+1. Se mantienen los sistemas y recursos de la FASE 1.
+2. Se añaden dos accesos nuevos en Tierras salvajes:
+   - Catacumbas: acceso por la zona suroeste/oeste del mapa.
+   - Minas antiguas: acceso por la zona sureste del mapa.
+3. La Cripta de Ceniza original se conserva.
+4. Cada acceso genera una distribución distinta de salas y pasillos:
+   - Cripta: diseño original.
+   - Catacumbas: más salas y pasillos, con distribución propia.
+   - Minas antiguas: salas más amplias y distribución diferente.
+5. Se corrigen las etiquetas de los NPC de la aldea: ahora se dibujan con una fuente de píxeles en coordenadas de pantalla, en vez de usar la consola de depuración para texto que se desplaza con la cámara. También se dibujan el aviso de misión y el texto de interacción con este sistema.
+6. Se conservan controles, inventario, equipo, botín, tienda, herrero, misiones, jefes, guardado y recursos gráficos.
+
+NOTAS
+-----
+- Las nuevas mazmorras reutilizan el sistema de exploración y combate de la cripta, pero cada una genera un plano distinto.
+- Las tres mazmorras vuelven a Tierras salvajes mediante las escaleras de salida.
+- No se ha cambiado el formato de guardado ni el nombre ashen.sav.
+- No he podido ejecutar PSPDEV ni probarlo en una PSP desde este entorno. Es necesario compilarlo en tu Ubuntu/WSL y probar los accesos y las etiquetas en el juego.
