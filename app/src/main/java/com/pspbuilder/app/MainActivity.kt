@@ -300,19 +300,19 @@ echo PSPDEV_LISTO
                 val ubuntuScript = """
 set -Eeuo pipefail
 export PSPDEV=/root/pspdev
-export PATH="/root/pspdev/bin:\$PATH"
-test -x "\$PSPDEV/bin/psp-gcc" || { echo "No se encuentra psp-gcc en \$PSPDEV/bin"; exit 10; }
-test -x "\$PSPDEV/bin/psp-config" || { echo "No se encuentra psp-config en \$PSPDEV/bin"; exit 11; }
-export PSPSDK="\$(\$PSPDEV/bin/psp-config --pspsdk-path)"
-test -d "\$PSPSDK" || { echo "PSPSDK no válido: \$PSPSDK"; exit 12; }
-echo "PSPDEV=\$PSPDEV"
-echo "PSPSDK=\$PSPSDK"
-echo "Compilador: \$(psp-gcc --version | head -n 1)"
+export PATH="/root/pspdev/bin:${'$'}PATH"
+test -x "${'$'}PSPDEV/bin/psp-gcc" || { echo "No se encuentra psp-gcc en ${'$'}PSPDEV/bin"; exit 10; }
+test -x "${'$'}PSPDEV/bin/psp-config" || { echo "No se encuentra psp-config en ${'$'}PSPDEV/bin"; exit 11; }
+export PSPSDK="${'$'}(${'$'}PSPDEV/bin/psp-config --pspsdk-path)"
+test -d "${'$'}PSPSDK" || { echo "PSPSDK no válido: ${'$'}PSPSDK"; exit 12; }
+echo "PSPDEV=${'$'}PSPDEV"
+echo "PSPSDK=${'$'}PSPSDK"
+echo "Compilador: ${'$'}(psp-gcc --version | head -n 1)"
 test -r "$shared/$zipName" || { echo "No se puede leer el ZIP: $shared/$zipName"; exit 13; }
 W="/tmp/pspbuilder-$runId"
-rm -rf "\$W"
-mkdir -p "\$W"
-python3 - "$shared/$zipName" "\$W" <<'PY'
+rm -rf "${'$'}W"
+mkdir -p "${'$'}W"
+python3 - "$shared/$zipName" "${'$'}W" <<'PY'
 import sys, zipfile
 archive, destination = sys.argv[1], sys.argv[2]
 with zipfile.ZipFile(archive) as z:
@@ -322,15 +322,15 @@ with zipfile.ZipFile(archive) as z:
             raise SystemExit("Ruta insegura en ZIP: " + item.filename)
     z.extractall(destination)
 PY
-M="\$(find "\$W" -type f -iname Makefile -print -quit)"
-if [ -z "\$M" ]; then echo "No se encontró ningún Makefile dentro del ZIP."; find "\$W" -maxdepth 4 -type f | head -80; exit 14; fi
-PROJECT_DIR="\$(dirname "\$M")"
-echo "Makefile: \$M"
-cd "\$PROJECT_DIR"
+M="${'$'}(find "${'$'}W" -type f -iname Makefile -print -quit)"
+if [ -z "${'$'}M" ]; then echo "No se encontró ningún Makefile dentro del ZIP."; find "${'$'}W" -maxdepth 4 -type f | head -80; exit 14; fi
+PROJECT_DIR="${'$'}(dirname "${'$'}M")"
+echo "Makefile: ${'$'}M"
+cd "${'$'}PROJECT_DIR"
 make -j2
-E="\$(find . -type f -name EBOOT.PBP -print -quit)"
-test -n "\$E" || { echo "make terminó, pero no generó EBOOT.PBP."; exit 15; }
-cp "\$E" "$shared/$outName"
+E="${'$'}(find . -type f -name EBOOT.PBP -print -quit)"
+test -n "${'$'}E" || { echo "make terminó, pero no generó EBOOT.PBP."; exit 15; }
+cp "${'$'}E" "$shared/$outName"
 test -s "$shared/$outName"
 echo "COMPILACION_OK"
 echo "EBOOT generado: $shared/$outName"
