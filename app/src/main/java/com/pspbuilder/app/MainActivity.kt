@@ -334,15 +334,15 @@ echo PSPDEV_LISTO
                 val ubuntuScript = """
 set -Eeuo pipefail
 export PSPDEV=/root/pspdev
-export PATH="/root/pspdev/bin:${'PATH"}PATH"
-test -x "${'PSPDEV/bin/psp-gcc"}PSPDEV/bin/psp-gcc" || { echo "No se encuentra psp-gcc"; exit 10; }
-export PSPSDK="$( "${'PSPDEV/bin/psp-config" --pspsdk-path)"}PSPDEV/bin/psp-config" --pspsdk-path)"
-test -d "${'PSPSDK"}PSPSDK" || { echo "PSPSDK no válido: $PSPSDK"; exit 12; }
-echo "PSPDEV=$PSPDEV"
-echo "PSPSDK=$PSPSDK"
+export PATH="/root/pspdev/bin:${'$'}PATH"
+test -x "${'$'}PSPDEV/bin/psp-gcc" || { echo "No se encuentra psp-gcc"; exit 10; }
+export PSPSDK="$(${'$'}PSPDEV/bin/psp-config --pspsdk-path)"
+test -d "${'$'}PSPSDK" || { echo "PSPSDK no válido: ${'$'}PSPSDK"; exit 12; }
+echo "PSPDEV=${'$'}PSPDEV"
+echo "PSPSDK=${'$'}PSPSDK"
 W="/tmp/pspbuilder-${runId}"
-rm -rf "${'W"; mkdir -p "${'
-python3 - "${termuxShared}/${zipName}" "${'W"}W" <<'PY'
+rm -rf "${'$'}W"; mkdir -p "${'$'}W"
+python3 - "${termuxShared}/${zipName}" "${'$'}W" <<'PY'
 import sys, zipfile
 archive, destination = sys.argv[1], sys.argv[2]
 with zipfile.ZipFile(archive) as z:
@@ -352,14 +352,14 @@ with zipfile.ZipFile(archive) as z:
             raise SystemExit("Ruta insegura en ZIP: " + item.filename)
     z.extractall(destination)
 PY
-M="$(find "${'W" -type f -iname Makefile -print -quit)"}W" -type f -iname Makefile -print -quit)"
-test -n "${'M"}M" || { echo "No se encontró Makefile."; exit 14; }
-cd "$(dirname "${'M)"}M)"
+M="$(find "${'$'}W" -type f -iname Makefile -print -quit)"
+test -n "${'$'}M" || { echo "No se encontró Makefile."; exit 14; }
+cd "$(dirname "${'$'}M")"
 make -j2
 E="$(find . -type f -name EBOOT.PBP -print -quit)"
-test -n "${'E"}E" || { echo "make terminó sin EBOOT.PBP."; exit 15; }
-cp "${'E" "${termuxShared}/${outName}"}E" "${termuxShared}/${outName}"
-test -s "$termuxShared/$outName"
+test -n "${'$'}E" || { echo "make terminó sin EBOOT.PBP."; exit 15; }
+cp "${'$'}E" "${termuxShared}/${outName}"
+test -s "${termuxShared}/${outName}"
 echo COMPILACION_OK
 """.trimIndent()
 
