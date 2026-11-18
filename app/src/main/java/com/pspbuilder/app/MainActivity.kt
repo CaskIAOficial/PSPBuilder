@@ -290,27 +290,44 @@ class MainActivity : Activity() {
     }
 
     private fun workerRequest(method: String, path: String, body: JSONObject? = null): JSONObject {
-        val connection = (URL("https://pspbuilder.caskiaoficial.workers.dev$path").openConnection() as HttpURLConnection)
-        connection.requestMethod = method
-        connection.connectTimeout = 30000
-        connection.readTimeout = 60000
-        connection.setRequestProperty("Accept", "application/json")
-        if (body != null) {
-            connection.doOutput = true
-            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-            connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+        var lastError: Exception? = null
+        for (attempt in 0..2) {
+            var connection: HttpURLConnection? = null
+            try {
+                connection = (URL("https://pspbuilder.caskiaoficial.workers.dev$path").openConnection() as HttpURLConnection)
+                connection.requestMethod = method
+                connection.connectTimeout = 15000
+                connection.readTimeout = 45000
+                connection.setRequestProperty("Accept", "application/json")
+                if (body != null) {
+                    connection.doOutput = true
+                    connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                    connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                }
+                val code = connection.responseCode
+                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                val response = stream?.bufferedReader()?.use { it.readText() } ?: ""
+                val result = try { JSONObject(response) } catch (_: Exception) {
+                    throw IllegalStateException("El servidor devolvió una respuesta no válida (HTTP $code).")
+                }
+                if (code !in 200..299) {
+                    throw IllegalStateException(result.optString("message", result.optString("error", "Error del servidor HTTP $code")))
+                }
+                return result
+            } catch (e: java.net.UnknownHostException) {
+                lastError = e
+                if (attempt < 2) Thread.sleep(1200L * (attempt + 1))
+            } catch (e: java.io.IOException) {
+                lastError = e
+                if (attempt < 2) Thread.sleep(800L * (attempt + 1))
+            } finally {
+                connection?.disconnect()
+            }
         }
-        val code = connection.responseCode
-        val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-        val response = stream?.bufferedReader()?.use { it.readText() } ?: ""
-        connection.disconnect()
-        val result = try { JSONObject(response) } catch (_: Exception) {
-            throw IllegalStateException("El servidor devolvió una respuesta no válida (HTTP $code).")
+        if (lastError is java.net.UnknownHostException) {
+            throw IllegalStateException("No se puede localizar el servidor de PSP Builder. Comprueba la conexión a Internet, cambia entre Wi-Fi y datos móviles y vuelve a intentarlo.")
         }
-        if (code !in 200..299) {
-            throw IllegalStateException(result.optString("message", result.optString("error", "Error del servidor HTTP $code")))
-        }
-        return result
+        throw IllegalStateException("No se pudo conectar con PSP Builder: ${lastError?.message ?: "error de red"}.")
     }
 
     private fun workerDownload(path: String): ByteArray {
