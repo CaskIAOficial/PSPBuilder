@@ -378,7 +378,7 @@ PSPBUILDER_UBUNTU_SCRIPT
 fi
 printf '%s\n' "${'$'}rc" > '$termuxShared/$exitName' 2>/dev/null || true
 exit "${'$'}rc"
-""".trimIndent())
+""".trimIndent()
 
                 runOnUiThread {
                     status.text = "Compilando en Ubuntu local…"
