@@ -377,7 +377,7 @@ PSPBUILDER_UBUNTU_SCRIPT
   fi
 fi
 printf '%s\n' "${'$'}rc" > '$termuxShared/$exitName' 2>/dev/null || true
-exit "${'
+exit "${'$'}rc"
 """.trimIndent())
 
                 runOnUiThread {
@@ -388,7 +388,8 @@ exit "${'
                     setClassName("com.termux", "com.termux.app.RunCommandService")
                     action = "com.termux.RUN_COMMAND"
                     putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash")
-                    putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-lc", termuxCommand))
+                    putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-s"))
+                    putExtra("com.termux.RUN_COMMAND_STDIN", termuxCommand)
                     putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home")
                     putExtra("com.termux.RUN_COMMAND_BACKGROUND", false)
                     putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0")
