@@ -1,0 +1,31 @@
+EL SAGRADO - FASE 5: LLAVES Y PUERTAS ANTIGUAS
+================================================
+
+NOVEDADES
+---------
+- Se añade una llave antigua en la sala inicial de cada incursión a una
+  mazmorra. Se recoge automáticamente al pasar por encima.
+- Se añade una puerta cerrada en el primer corredor de cada mazmorra.
+- Acércate a la puerta y pulsa CIRCULO para intentar abrirla.
+- Si llevas la llave, la puerta se abre y la llave se consume.
+- Si no llevas la llave, aparece un aviso indicando que debes buscarla.
+- Se añaden gráficos propios para la llave y la puerta y colores propios
+  en el minimapa.
+
+COMPATIBILIDAD
+--------------
+- No se modifica la estructura ni el formato de ashen.sav.
+- La llave se gestiona durante la incursión y se reinicia al volver a entrar.
+- Se conservan las fases anteriores, clases, enemigos, campeones, cofres,
+  trampas, cámaras laterales, misiones y sistemas existentes.
+
+INSTALACION Y COMPILACION
+------------------------
+Usa la carpeta EL_SAGRADO como proyecto completo y compila con tu PSPDEV
+instalado en Ubuntu/WSL. No reinstales ni muevas PSPDEV.
+
+IMPORTANTE
+----------
+El ZIP se ha comprobado estructuralmente. No se ha ejecutado PSPDEV ni
+probado el EBOOT en una PSP desde este entorno. Haz copia de seguridad de
+ashen.sav antes de probar una compilación nueva.

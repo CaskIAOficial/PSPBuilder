@@ -1,0 +1,30 @@
+EL SAGRADO — FASE 3: ENCUENTROS Y TESOROS
+========================================
+
+CAMBIOS INCLUIDOS
+-----------------
+1. Se conserva íntegra la base de la FASE 2: aldea ampliada, tierras salvajes,
+   cripta, catacumbas, minas antiguas, etiquetas gráficas y sistemas existentes.
+2. Cada mazmorra tiene una composición de enemigos distinta:
+   - Cripta de Ceniza: enemigos resistentes y criaturas de las sombras.
+   - Catacumbas: más presencia de arañas, murciélagos y espectros.
+   - Minas antiguas: orcos y enemigos de mayor resistencia.
+3. Se aumenta progresivamente la cantidad de enemigos y cofres:
+   - Cripta: 20 enemigos y 8 cofres.
+   - Catacumbas: 23 enemigos y 10 cofres.
+   - Minas antiguas: 25 enemigos y 12 cofres.
+4. Se añade un campeón de élite propio al recorrido de cada mazmorra,
+   colocado en una sala anterior a la cámara final. Tiene más vida y daño
+   que un enemigo normal y utiliza el sistema de botín de élites existente.
+5. El jefe de historia de la Cripta se mantiene en su cámara final y conserva
+   su bandera de progreso actual.
+6. No se modifica el formato de guardado ni el archivo ashen.sav.
+
+NOTAS
+-----
+- Los campeones de élite se regeneran al volver a entrar en una mazmorra,
+  igual que los enemigos y cofres de las zonas actuales.
+- No se han añadido todavía trampas persistentes ni guardado individual del
+  estado de cada mazmorra; quedan para una fase posterior.
+- No he podido ejecutar PSPDEV ni probarlo en una PSP desde este entorno.
+  Compila en Ubuntu/WSL y prueba las tres entradas antes de sustituir tu copia.
