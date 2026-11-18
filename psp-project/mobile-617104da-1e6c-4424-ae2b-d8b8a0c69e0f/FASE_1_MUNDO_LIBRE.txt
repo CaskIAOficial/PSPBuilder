@@ -1,0 +1,30 @@
+EL SAGRADO - FASE 1: AMPLIACION DEL MUNDO
+========================================
+
+Esta fase amplía la aldea y mejora la exploración de las tierras salvajes.
+
+CAMBIOS
+-------
+- Aldea ampliada de 40x30 a 56x40 casillas.
+- Se conserva el núcleo original, las cuatro casas y las posiciones de los NPC.
+- Se añaden caminos secundarios, plazas y claros en los alrededores de la aldea.
+- Se amplía la red de senderos de las tierras salvajes para conectar zonas de
+  exploración y crear rutas alternativas.
+- Se mantienen las dimensiones de las tierras salvajes (80x80), la cripta,
+  el pantano, las entradas, los jefes y los sistemas existentes.
+- No se cambia el formato de guardado ni los controles.
+
+INSTALACION
+-----------
+1. Haz una copia de seguridad de tu carpeta actual del proyecto.
+2. Extrae este ZIP.
+3. Sustituye los archivos del proyecto por los incluidos, manteniendo juntos
+   main.c, Makefile y los recursos del juego.
+4. Compila con tu PSPDEV habitual.
+5. Comprueba el EBOOT.PBP antes de sustituir el juego de tu PSP.
+
+IMPORTANTE
+----------
+Esta entrega modifica el codigo fuente, pero no se ha podido ejecutar PSPDEV
+ni probar el juego en una PSP en este entorno. No se garantiza la compilacion
+hasta que se pruebe con tu toolchain. Conserva siempre tu version anterior.
