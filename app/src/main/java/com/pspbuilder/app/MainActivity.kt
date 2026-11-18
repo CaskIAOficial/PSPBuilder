@@ -327,10 +327,21 @@ echo PSPDEV_LISTO
                 return contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
                     ?: error("No se pudo crear $name en Descargas.")
             }
-            fun readMediaText(uri: Uri?): String {
-                if (uri == null) return ""
+            // MediaStore puede devolver un URI que deja de ser válido después de que Termux
+            // modifique el archivo desde /sdcard. Reconsultamos la fila por nombre y ruta.
+            fun findMediaFile(name: String): Uri? {
+                val collection = android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                val projection = arrayOf(android.provider.MediaStore.MediaColumns._ID)
+                val selection = "${android.provider.MediaStore.MediaColumns.DISPLAY_NAME}=? AND ${android.provider.MediaStore.MediaColumns.RELATIVE_PATH}=?"
+                return contentResolver.query(collection, projection, selection, arrayOf(name, rel), null)?.use { cursor ->
+                    if (cursor.moveToFirst()) android.content.ContentUris.withAppendedId(collection, cursor.getLong(0)) else null
+                }
+            }
+            fun currentUri(original: Uri?, name: String): Uri? = findMediaFile(name) ?: original
+            fun readMediaText(name: String, original: Uri?): String {
+                val uri = currentUri(original, name) ?: return ""
                 return try { contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty() }
-                catch (_: Exception) { "" }
+                catch (e: Exception) { "No se pudo leer $name ($uri): ${e.message}" }
             }
 
             try {
@@ -464,8 +475,8 @@ exit "${'$'}rc"
                         termuxStdout = resultPrefs.getString("${runId}_stdout", "").orEmpty()
                         if (termuxErr != -1) termuxErrMsg = (termuxErrMsg + "\n" + resultPrefs.getString("${runId}_stderr", "").orEmpty()).trim()
                     } else {
-                        exitCode = readMediaText(exitUri).trim().toIntOrNull()
-                        if (exitCode == null && !sawSign && readMediaText(logUri).contains("TERMUX_RECIBIDO")) {
+                        exitCode = readMediaText(exitName, exitUri).trim().toIntOrNull()
+                        if (exitCode == null && !sawSign && readMediaText(logName, logUri).contains("TERMUX_RECIBIDO")) {
                             sawSign = true
                             runOnUiThread { status.text = "Termux recibió el comando. Compilando en Ubuntu local…" }
                         }
@@ -482,7 +493,10 @@ exit "${'$'}rc"
                 if (exitCode == null) error("Termux no comunicó el final de la compilación en 15 minutos.\n${buildLog.takeLast(3500)}")
                 if (exitCode != 0) error("La compilación falló (código $exitCode).\n${buildLog.takeLast(5000).ifBlank { termuxStdout.takeLast(3000) }}")
 
-                val input = contentResolver.openInputStream(outUri!!)
+                val finalOutUri = currentUri(outUri, outName)
+                    ?: error("Termux terminó correctamente, pero no aparece $outName en Descargas/PSPBuilder.")
+                val input = try { contentResolver.openInputStream(finalOutUri) }
+                    catch (e: Exception) { throw IllegalStateException("Android no permite abrir el EBOOT generado ($finalOutUri): ${e.message}", e) }
                     ?: error("Termux terminó correctamente, pero Android no pudo abrir el EBOOT.PBP.")
                 val eboot = File(cacheDir, outName)
                 input.use { source -> eboot.outputStream().use { target -> source.copyTo(target) } }
