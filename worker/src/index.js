@@ -123,25 +123,49 @@ export default {
           if (size > 900 * 1024 || total > 20 * 1024 * 1024)
             return json({ error: "PROJECT_TOO_LARGE", message: "Límite: 20 MB en total y 900 KB por archivo." }, 413, cors);
         }
-        // La API Contents crea un commit por archivo. Las escrituras paralelas
-        // compiten por la referencia de main y provocan 409 (expected SHA).
-        // Subir secuencialmente evita la carrera y mantiene el proyecto íntegro.
-        for (const file of files) {
-          const path = projectPath + "/" + file.path.split("/").map(encodeURIComponent).join("/");
-          let response = await github(env, "/contents/" + path, {
-            method: "PUT",
-            body: JSON.stringify({ message: "PSP Builder: importar " + file.path, content: file.content, branch: BRANCH })
-          });
-          if (response.status === 409) {
-            // Una escritura externa pudo mover main entre peticiones; reintentar una vez.
-            await new Promise(resolve => setTimeout(resolve, 350));
-            response = await github(env, "/contents/" + path, {
-              method: "PUT",
-              body: JSON.stringify({ message: "PSP Builder: importar " + file.path, content: file.content, branch: BRANCH })
+        // Subida optimizada: crear blobs en paralelo y guardar todos los archivos
+        // en un único árbol/commit. Evita 90 commits y la carrera 409 de Contents API.
+        const blobEntries = [];
+        for (let i = 0; i < files.length; i += 8) {
+          const batch = files.slice(i, i + 8);
+          const created = await Promise.all(batch.map(async file => {
+            const response = await github(env, "/git/blobs", {
+              method: "POST",
+              body: JSON.stringify({ content: file.content, encoding: "base64" })
             });
-          }
-          if (!response.ok) throw new Error("No se pudo subir " + file.path + " a GitHub (" + response.status + "): " + await response.text());
+            if (!response.ok) throw new Error("No se pudo preparar " + file.path + " en GitHub (" + response.status + "): " + await response.text());
+            const blob = await response.json();
+            return { path: projectPath + "/" + file.path, mode: "100644", type: "blob", sha: blob.sha };
+          }));
+          blobEntries.push(...created);
         }
+
+        const refResponse = await github(env, "/git/ref/heads/" + BRANCH);
+        if (!refResponse.ok) throw new Error("No se pudo consultar la rama de GitHub (" + refResponse.status + "): " + await refResponse.text());
+        const refData = await refResponse.json();
+        const baseCommitResponse = await github(env, "/git/commits/" + refData.object.sha);
+        if (!baseCommitResponse.ok) throw new Error("No se pudo consultar el commit base de GitHub (" + baseCommitResponse.status + ").");
+        const baseCommit = await baseCommitResponse.json();
+
+        const treeResponse = await github(env, "/git/trees", {
+          method: "POST",
+          body: JSON.stringify({ base_tree: baseCommit.tree.sha, tree: blobEntries })
+        });
+        if (!treeResponse.ok) throw new Error("No se pudo crear el árbol del proyecto (" + treeResponse.status + "): " + await treeResponse.text());
+        const tree = await treeResponse.json();
+
+        const commitResponse = await github(env, "/git/commits", {
+          method: "POST",
+          body: JSON.stringify({ message: "PSP Builder: importar proyecto " + requestId, tree: tree.sha, parents: [refData.object.sha] })
+        });
+        if (!commitResponse.ok) throw new Error("No se pudo crear el commit del proyecto (" + commitResponse.status + "): " + await commitResponse.text());
+        const commit = await commitResponse.json();
+
+        const updateRef = await github(env, "/git/refs/heads/" + BRANCH, {
+          method: "PATCH",
+          body: JSON.stringify({ sha: commit.sha, force: false })
+        });
+        if (!updateRef.ok) throw new Error("No se pudo publicar el proyecto en GitHub (" + updateRef.status + "): " + await updateRef.text());
         const dispatch = await github(env, "/actions/workflows/psp-build.yml/dispatches", {
           method: "POST",
           body: JSON.stringify({ ref: BRANCH, inputs: { project_path: projectPath, request_id: requestId } })
