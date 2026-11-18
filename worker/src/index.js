@@ -123,18 +123,24 @@ export default {
           if (size > 900 * 1024 || total > 20 * 1024 * 1024)
             return json({ error: "PROJECT_TOO_LARGE", message: "Límite: 20 MB en total y 900 KB por archivo." }, 413, cors);
         }
-        // Subir en lotes pequeños: reduce el tiempo total sin saturar la API de GitHub.
-        for (let i = 0; i < files.length; i += 4) {
-          const batch = files.slice(i, i + 4);
-          const results = await Promise.all(batch.map(async file => {
-            const path = projectPath + "/" + file.path.split("/").map(encodeURIComponent).join("/");
-            const response = await github(env, "/contents/" + path, {
+        // La API Contents crea un commit por archivo. Las escrituras paralelas
+        // compiten por la referencia de main y provocan 409 (expected SHA).
+        // Subir secuencialmente evita la carrera y mantiene el proyecto íntegro.
+        for (const file of files) {
+          const path = projectPath + "/" + file.path.split("/").map(encodeURIComponent).join("/");
+          let response = await github(env, "/contents/" + path, {
+            method: "PUT",
+            body: JSON.stringify({ message: "PSP Builder: importar " + file.path, content: file.content, branch: BRANCH })
+          });
+          if (response.status === 409) {
+            // Una escritura externa pudo mover main entre peticiones; reintentar una vez.
+            await new Promise(resolve => setTimeout(resolve, 350));
+            response = await github(env, "/contents/" + path, {
               method: "PUT",
               body: JSON.stringify({ message: "PSP Builder: importar " + file.path, content: file.content, branch: BRANCH })
             });
-            if (!response.ok) throw new Error("No se pudo subir " + file.path + " a GitHub (" + response.status + "): " + await response.text());
-            return file.path;
-          }));
+          }
+          if (!response.ok) throw new Error("No se pudo subir " + file.path + " a GitHub (" + response.status + "): " + await response.text());
         }
         const dispatch = await github(env, "/actions/workflows/psp-build.yml/dispatches", {
           method: "POST",
