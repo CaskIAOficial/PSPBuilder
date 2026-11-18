@@ -442,10 +442,24 @@ class MainActivity : Activity() {
                 var waitSeconds = interval
                 repeat(60) {
                     Thread.sleep(waitSeconds * 1000L)
-                    val result = oauthPost("https://github.com/login/oauth/access_token",
-                        "client_id=$OAUTH_CLIENT_ID&device_code=${Uri.encode(deviceCode)}&grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code",
-                        allowOAuthError = true)
-                    val token = result.optString("access_token")
+                    var result: JSONObject? = null
+                    var networkAttempts = 0
+                    while (result == null) {
+                        try {
+                            result = oauthPost("https://github.com/login/oauth/access_token",
+                                "client_id=$OAUTH_CLIENT_ID&device_code=${Uri.encode(deviceCode)}&grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code",
+                                allowOAuthError = true)
+                        } catch (e: java.io.IOException) {
+                            networkAttempts++
+                            if (networkAttempts >= 6) throw e
+                            runOnUiThread {
+                                status.text = "GitHub ya recibió tu autorización. Recuperando la conexión… (intento $networkAttempts/6)"
+                            }
+                            Thread.sleep((networkAttempts * 3000L).coerceAtMost(15000L))
+                        }
+                    }
+                    val tokenResponse = result
+                    val token = tokenResponse.optString("access_token")
                     if (token.isNotBlank()) {
                         saveToken(token)
                         runOnUiThread {
@@ -454,12 +468,12 @@ class MainActivity : Activity() {
                         }
                         return@Thread
                     }
-                    when (result.optString("error")) {
+                    when (tokenResponse.optString("error")) {
                         "authorization_pending" -> waitSeconds = interval
                         "slow_down" -> waitSeconds += 5
                         "expired_token" -> throw IllegalStateException("El código ha caducado. Pulsa COMPILAR para intentarlo de nuevo.")
                         "access_denied" -> throw IllegalStateException("Has rechazado la autorización de GitHub.")
-                        else -> throw IllegalStateException(result.optString("error_description", "No se pudo autorizar GitHub."))
+                        else -> throw IllegalStateException(tokenResponse.optString("error_description", "No se pudo autorizar GitHub."))
                     }
                 }
                 throw IllegalStateException("Se agotó el tiempo de autorización. Inténtalo de nuevo.")
