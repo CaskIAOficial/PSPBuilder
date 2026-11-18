@@ -1,0 +1,28 @@
+EL SAGRADO - FASE 9: LOS ECOS DEL CORAZON
+=========================================
+
+NOVEDADES
+---------
+- Tras conseguir el Corazon Sagrado, el Anciano ofrece un nuevo desafio
+  posterior a la historia principal.
+- Al entrar en las Tierras Salvajes despues del desenlace aparecen hasta
+  tres campeones de los Ecos del Corazon, colocados en distintos sectores.
+- Son enemigos de elite reforzados, con mas vida, daño y experiencia.
+- La Sanadora explica que el poder del Corazon atrae nuevas sombras y
+  recuerda que las habilidades pueden cambiarse desde el menu.
+- El desafio se puede repetir al salir y volver a entrar en las Tierras
+  Salvajes; cada visita genera nuevos campeones.
+- La aventura principal y su desenlace siguen intactos.
+
+COMPATIBILIDAD
+--------------
+- No se añaden campos ni se modifica el formato de ashen.sav.
+- No se cambian las clases, el equipo, las bonificaciones del Corazon,
+  las misiones principales ni los controles.
+- Se parte del proyecto de la Fase 8.
+
+COMPILACION Y PRUEBAS
+---------------------
+El ZIP se ha comprobado estructuralmente. No se ha ejecutado PSPDEV ni
+probado en una PSP desde este entorno. Compila con tu Ubuntu/WSL y prueba
+el desafio despues de cargar una partida que ya tenga el Corazon Sagrado.
