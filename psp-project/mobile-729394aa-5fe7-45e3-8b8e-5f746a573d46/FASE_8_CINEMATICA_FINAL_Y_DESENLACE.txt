@@ -1,0 +1,31 @@
+EL SAGRADO - FASE 8: CINEMATICA FINAL Y DESENLACE
+=================================================
+
+BASE
+----
+Parte del paquete FASE 7: LEYENDA DEL CORAZON.
+
+NOVEDADES
+---------
+- Al derrotar al Guardian del Corazon se obtiene el Corazon Sagrado y se
+  inicia una secuencia narrativa final de cinco paginas.
+- La secuencia cuenta la caida del Guardian, la liberacion de la reliquia,
+  su equipamiento en la pechera y el regreso de la esperanza a la aldea.
+- Pulsa X para avanzar por las paginas o CIRCULO para omitir la secuencia.
+- La escena se dibuja con elementos graficos del propio juego; no requiere
+  imagenes, audio ni recursos externos adicionales.
+- Tras el desenlace se vuelve al juego y se puede seguir explorando.
+
+COMPATIBILIDAD
+--------------
+- No se añaden campos al guardado ni se cambia el formato de ashen.sav.
+- No se modifican las clases, habilidades, inventario, equipo, misiones,
+  controles habituales ni las bonificaciones del Corazon Sagrado.
+- El estado de la escena es temporal; si se sale antes de terminarla, la
+  recompensa del jefe ya se ha aplicado en la partida.
+
+COMPILACION Y PRUEBAS
+---------------------
+El ZIP se ha comprobado estructuralmente. No se ha ejecutado PSPDEV ni
+probado en una PSP desde este entorno. Compila en tu Ubuntu/WSL y prueba
+la secuencia tras derrotar al Guardian antes de sustituir tu copia.
