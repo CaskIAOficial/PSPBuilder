@@ -146,7 +146,7 @@ echo PSPDEV_LISTO
                 putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash")
                 putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-lc", script))
                 putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home")
-                putExtra("com.termux.RUN_COMMAND_BACKGROUND", false)
+                putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
                 putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0")
             }
             startService(intent)
