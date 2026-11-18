@@ -301,6 +301,16 @@ echo PSPDEV_LISTO
     }
 
     private fun compileProject() {
+        if (android.os.Build.VERSION.SDK_INT >= 30 && !android.os.Environment.isExternalStorageManager()) {
+            status.text = "Concede a PSP Builder el permiso «Administrar todos los archivos» y vuelve a pulsar COMPILAR."
+            try {
+                startActivity(Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                    Uri.parse("package:$packageName")))
+            } catch (_: Exception) {
+                startActivity(Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+            }
+            return
+        }
         val zip = projectFile
         if (zip == null || !zip.exists()) { status.text = "Primero elige un ZIP de proyecto."; return }
         val runId = java.util.UUID.randomUUID().toString().replace("-", "")
@@ -308,68 +318,31 @@ echo PSPDEV_LISTO
         val outName = "EBOOT-$runId.PBP"
         val logName = "build-$runId.log"
         val exitName = "build-$runId.exit"
-        val rel = "${android.os.Environment.DIRECTORY_DOWNLOADS}/PSPBuilder/"
-        val termuxShared = "/sdcard/Download/PSPBuilder"
-        val ubuntuShared = "/mnt/sdcard/Download/PSPBuilder"
+        val sharedDir = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), "PSPBuilder")
+        val termuxShared = sharedDir.absolutePath
         status.text = "Preparando ZIP para Termux…"
         Thread {
-            var zipUri: Uri? = null
-            var outUri: Uri? = null
-            var logUri: Uri? = null
-            var exitUri: Uri? = null
-
-            fun makeMediaFile(name: String, mime: String): Uri {
-                val values = android.content.ContentValues().apply {
-                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name)
-                    put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mime)
-                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, rel)
-                }
-                return contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                    ?: error("No se pudo crear $name en Descargas.")
-            }
-            // MediaStore puede devolver un URI que deja de ser válido después de que Termux
-            // modifique el archivo desde /sdcard. Reconsultamos la fila por nombre y ruta.
-            fun findMediaFile(name: String): Uri? {
-                val collection = android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI
-                val projection = arrayOf(android.provider.MediaStore.MediaColumns._ID)
-                val selection = "${android.provider.MediaStore.MediaColumns.DISPLAY_NAME}=? AND ${android.provider.MediaStore.MediaColumns.RELATIVE_PATH}=?"
-                return contentResolver.query(collection, projection, selection, arrayOf(name, rel), null)?.use { cursor ->
-                    if (cursor.moveToFirst()) android.content.ContentUris.withAppendedId(collection, cursor.getLong(0)) else null
-                }
-            }
-            fun currentUri(original: Uri?, name: String): Uri? = findMediaFile(name) ?: original
-            fun readMediaText(name: String, original: Uri?): String {
-                val uri = currentUri(original, name) ?: return ""
-                return try { contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty() }
-                catch (e: Exception) { "No se pudo leer $name ($uri): ${e.message}" }
-            }
-
             try {
-                zipUri = makeMediaFile(zipName, "application/zip")
-                contentResolver.openOutputStream(zipUri!!, "w").use { output ->
-                    requireNotNull(output) { "No se pudo copiar el ZIP a Descargas." }
-                    zip.inputStream().use { it.copyTo(output) }
-                }
-                outUri = makeMediaFile(outName, "application/octet-stream")
-                logUri = makeMediaFile(logName, "text/plain")
-                exitUri = makeMediaFile(exitName, "text/plain")
+                require(sharedDir.exists() || sharedDir.mkdirs()) { "No se pudo crear $termuxShared." }
+                val zipFile = File(sharedDir, zipName)
+                val outFile = File(sharedDir, outName)
+                val logFile = File(sharedDir, logName)
+                val exitFile = File(sharedDir, exitName)
+                zip.copyTo(zipFile, overwrite = true)
+                outFile.delete(); logFile.writeText(""); exitFile.delete()
 
                 val ubuntuScript = """
 set -Eeuo pipefail
 export PSPDEV=/root/pspdev
-export PATH="/root/pspdev/bin:${'$'}PATH"
-test -x "${'$'}PSPDEV/bin/psp-gcc" || { echo "No se encuentra psp-gcc en ${'$'}PSPDEV/bin"; exit 10; }
-test -x "${'$'}PSPDEV/bin/psp-config" || { echo "No se encuentra psp-config en ${'$'}PSPDEV/bin"; exit 11; }
-export PSPSDK="${'$'}("${'$'}PSPDEV/bin/psp-config" --pspsdk-path)"
-test -d "${'$'}PSPSDK" || { echo "PSPSDK no válido: ${'$'}PSPSDK"; exit 12; }
-echo "PSPDEV=${'$'}PSPDEV"
-echo "PSPSDK=${'$'}PSPSDK"
-echo "Compilador: ${'$'}(psp-gcc --version | head -n 1)"
-test -r "$ubuntuShared/$zipName" || { echo "No se puede leer el ZIP: $ubuntuShared/$zipName"; exit 13; }
+export PATH="/root/pspdev/bin:$PATH"
+test -x "$PSPDEV/bin/psp-gcc" || { echo "No se encuentra psp-gcc"; exit 10; }
+export PSPSDK="$("$PSPDEV/bin/psp-config" --pspsdk-path)"
+test -d "$PSPSDK" || { echo "PSPSDK no válido: $PSPSDK"; exit 12; }
+echo "PSPDEV=$PSPDEV"
+echo "PSPSDK=$PSPSDK"
 W="/tmp/pspbuilder-$runId"
-rm -rf "${'$'}W"
-mkdir -p "${'$'}W"
-python3 - "$ubuntuShared/$zipName" "${'$'}W" <<'PY'
+rm -rf "$W"; mkdir -p "$W"
+python3 - "$termuxShared/$zipName" "$W" <<'PY'
 import sys, zipfile
 archive, destination = sys.argv[1], sys.argv[2]
 with zipfile.ZipFile(archive) as z:
@@ -379,128 +352,69 @@ with zipfile.ZipFile(archive) as z:
             raise SystemExit("Ruta insegura en ZIP: " + item.filename)
     z.extractall(destination)
 PY
-M="${'$'}(find "${'$'}W" -type f -iname Makefile -print -quit)"
-if [ -z "${'$'}M" ]; then
-    echo "No se encontró ningún Makefile dentro del ZIP."
-    find "${'$'}W" -maxdepth 4 -type f | head -80
-    exit 14
-fi
-PROJECT_DIR="${'$'}(dirname "${'$'}M")"
-echo "Makefile: ${'$'}M"
-cd "${'$'}PROJECT_DIR"
+M="$(find "$W" -type f -iname Makefile -print -quit)"
+test -n "$M" || { echo "No se encontró Makefile."; exit 14; }
+cd "$(dirname "$M")"
 make -j2
-E="${'$'}(find . -type f -name EBOOT.PBP -print -quit)"
-test -n "${'$'}E" || { echo "make terminó, pero no generó EBOOT.PBP."; exit 15; }
-cp "${'$'}E" "$ubuntuShared/$outName"
-test -s "$ubuntuShared/$outName"
-echo "COMPILACION_OK"
-echo "EBOOT generado: $ubuntuShared/$outName"
+E="$(find . -type f -name EBOOT.PBP -print -quit)"
+test -n "$E" || { echo "make terminó sin EBOOT.PBP."; exit 15; }
+cp "$E" "$termuxShared/$outName"
+test -s "$termuxShared/$outName"
+echo COMPILACION_OK
 """.trimIndent()
 
-                // Termux 0.118.x solo procesa RUN_COMMAND_STDIN en background. Pasamos el script con bash -c.
                 val termuxCommand = """
 echo "PSP Builder: comando recibido por Termux"
 set +e
-rc=0
-if ! mkdir -p '$termuxShared'; then
-  echo "No se pudo crear $termuxShared (¿termux-setup-storage?)"
-  rc=90
-else
-  printf 'TERMUX_RECIBIDO\n' > '$termuxShared/$logName' || rc=91
-  : > '$termuxShared/$exitName' || rc=92
-  if [ "${'$'}rc" -eq 0 ]; then
-    proot-distro login ubuntu -- /bin/bash -s >> '$termuxShared/$logName' 2>&1 <<'PSPBUILDER_UBUNTU_SCRIPT'
+mkdir -p '$termuxShared' || exit 90
+printf 'TERMUX_RECIBIDO\n' > '$termuxShared/$logName' || exit 91
+: > '$termuxShared/$exitName' || exit 92
+proot-distro login ubuntu -- /bin/bash -s >> '$termuxShared/$logName' 2>&1 <<'PSPBUILDER_UBUNTU_SCRIPT'
 $ubuntuScript
 PSPBUILDER_UBUNTU_SCRIPT
-    rc=$?
-  else
-    echo "No se pudo escribir el log/exit en $termuxShared (código ${'$'}rc)"
-  fi
-fi
-printf '%s\n' "${'$'}rc" > '$termuxShared/$exitName' 2>/dev/null || true
-tail -c 3000 '$termuxShared/$logName' 2>/dev/null || true
-echo "PSPBUILDER_RC=${'$'}rc"
-exit "${'$'}rc"
+rc=$?
+printf '%s\n' "$rc" > '$termuxShared/$exitName'
+exit "$rc"
 """.trimIndent()
 
                 runOnUiThread {
                     status.text = "Compilando en Ubuntu local…"
-                    log.text = "Enviando el proyecto a Termux. La aplicación recogerá automáticamente el registro y el EBOOT.PBP."
+                    log.text = "Enviando el proyecto a Termux."
                 }
-                val resultPrefs = getSharedPreferences("termux_results", MODE_PRIVATE)
-                resultPrefs.edit()
-                    .remove("${runId}_received")
-                    .remove("${runId}_exit_code")
-                    .remove("${runId}_err")
-                    .remove("${runId}_errmsg")
-                    .remove("${runId}_stdout")
-                    .remove("${runId}_stderr")
-                    .apply()
-
-                val resultIntent = Intent(this@MainActivity, TermuxResultReceiver::class.java)
-                    .putExtra("run_id", runId)
-                val pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT or
+                val prefs = getSharedPreferences("termux_results", MODE_PRIVATE)
+                prefs.edit().remove("${runId}_received").commit()
+                val resultIntent = Intent(this@MainActivity, TermuxResultReceiver::class.java).putExtra("run_id", runId)
+                val flags = PendingIntent.FLAG_UPDATE_CURRENT or
                     (if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0)
-                val resultPendingIntent = PendingIntent.getBroadcast(
-                    this@MainActivity, runId.hashCode() and 0x7fffffff, resultIntent, pendingFlags
-                )
-
-                val commandIntent = Intent().apply {
+                val pending = PendingIntent.getBroadcast(this@MainActivity, runId.hashCode() and 0x7fffffff, resultIntent, flags)
+                val command = Intent().apply {
                     setClassName("com.termux", "com.termux.app.RunCommandService")
                     action = "com.termux.RUN_COMMAND"
                     putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash")
                     putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-c", termuxCommand))
                     putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home")
                     putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
+                    putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", pending)
                     putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "Compilar proyecto PSP")
-                    putExtra("com.termux.RUN_COMMAND_COMMAND_DESCRIPTION", "PSP Builder ejecuta la compilación local en Ubuntu.")
-                    putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", resultPendingIntent)
                 }
-                val sendError = sendToTermux(commandIntent)
+                val sendError = sendToTermux(command)
                 if (sendError != null) error(sendError)
 
-                val startedAt = System.currentTimeMillis()
-                val deadline = startedAt + 900000L
-                val firstSignDeadline = startedAt + 120000L
+                val deadline = System.currentTimeMillis() + 900000L
                 var exitCode: Int? = null
-                var termuxErr: Int? = null
-                var termuxErrMsg = ""
-                var termuxStdout = ""
-                var sawSign = false
                 while (System.currentTimeMillis() < deadline && exitCode == null) {
-                    if (resultPrefs.getBoolean("${runId}_received", false)) {
-                        exitCode = resultPrefs.getInt("${runId}_exit_code", -999)
-                        termuxErr = resultPrefs.getInt("${runId}_err", 0)
-                        termuxErrMsg = resultPrefs.getString("${runId}_errmsg", "").orEmpty()
-                        termuxStdout = resultPrefs.getString("${runId}_stdout", "").orEmpty()
-                        if (termuxErr != -1) termuxErrMsg = (termuxErrMsg + "\n" + resultPrefs.getString("${runId}_stderr", "").orEmpty()).trim()
-                    } else {
-                        exitCode = readMediaText(exitName, exitUri).trim().toIntOrNull()
-                        if (exitCode == null && !sawSign && readMediaText(logName, logUri).contains("TERMUX_RECIBIDO")) {
-                            sawSign = true
-                            runOnUiThread { status.text = "Termux recibió el comando. Compilando en Ubuntu local…" }
-                        }
-                        if (exitCode == null && !sawSign && System.currentTimeMillis() > firstSignDeadline) {
-                            error("Termux no ejecutó el comando en 2 minutos. Comprueba allow-external-apps=true, el permiso RUN_COMMAND y termux-setup-storage.")
-                        }
+                    exitCode = exitFile.takeIf { it.exists() && it.length() > 0 }?.readText()?.trim()?.toIntOrNull()
+                    if (exitCode == null && prefs.getBoolean("${runId}_received", false)) {
+                        exitCode = prefs.getInt("${runId}_exit_code", -999)
                     }
                     if (exitCode == null) Thread.sleep(1000)
                 }
-                val buildLog = readMediaText(logName, logUri)
-                if (termuxErr != null && termuxErr != -1) {
-                    error("Termux no pudo iniciar el comando (error $termuxErr). $termuxErrMsg")
-                }
-                if (exitCode == null) error("Termux no comunicó el final de la compilación en 15 minutos.\n${buildLog.takeLast(3500)}")
-                if (exitCode != 0) error("La compilación falló (código $exitCode).\n${buildLog.takeLast(5000).ifBlank { termuxStdout.takeLast(3000) }}")
-
-                val finalOutUri = currentUri(outUri, outName)
-                    ?: error("Termux terminó correctamente, pero no aparece $outName en Descargas/PSPBuilder.")
-                val input = try { contentResolver.openInputStream(finalOutUri) }
-                    catch (e: Exception) { throw IllegalStateException("Android no permite abrir el EBOOT generado ($finalOutUri): ${e.message}", e) }
-                    ?: error("Termux terminó correctamente, pero Android no pudo abrir el EBOOT.PBP.")
-                val eboot = File(cacheDir, outName)
-                input.use { source -> eboot.outputStream().use { target -> source.copyTo(target) } }
-                require(eboot.isFile && eboot.length() > 0L) { "El EBOOT.PBP generado está vacío." }
+                val buildLog = logFile.takeIf { it.exists() }?.readText().orEmpty()
+                if (exitCode == null) error("Termux no terminó en 15 minutos.\n${buildLog.takeLast(3500)}")
+                if (exitCode != 0) error("Falló la compilación (código $exitCode).\n${buildLog.takeLast(5000)}")
+                require(outFile.isFile && outFile.length() > 0) { "La compilación terminó, pero no se encuentra el EBOOT generado en $termuxShared." }
+                val eboot = File(cacheDir, "EBOOT.PBP")
+                outFile.copyTo(eboot, overwrite = true)
                 pendingEboot = eboot
                 runOnUiThread {
                     try {
@@ -513,14 +427,11 @@ exit "${'$'}rc"
                     }
                 }
             } catch (e: Exception) {
-                runOnUiThread {
-                    status.text = "Error de compilación local: ${e.message ?: "error desconocido"}"
-                    log.text = readMediaText(logName, logUri).takeLast(5000).ifBlank { e.message ?: "error desconocido" }
-                }
+                runOnUiThread { status.text = "Error de compilación local: ${e.message ?: "error desconocido"}" }
             } finally {
-                listOf(zipUri, outUri, logUri, exitUri).forEach { uri ->
-                    try { uri?.let { contentResolver.delete(it, null, null) } } catch (_: Exception) { }
-                }
+                File(sharedDir, zipName).delete()
+                File(sharedDir, logName).delete()
+                File(sharedDir, exitName).delete()
             }
         }.start()
     }
