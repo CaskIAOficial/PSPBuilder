@@ -20,6 +20,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Prepare MSYS2 runtime and GNU Make
+        id: setup-msys2
         uses: msys2/setup-msys2@v2
         with:
           msystem: MSYS
@@ -29,12 +30,14 @@ jobs:
 
       - name: Download PSPDEV Windows toolchain
         shell: pwsh
+        env:
+          MSYS2_ROOT: ${{ steps.setup-msys2.outputs.msys2-location }}
         run: |
           $ErrorActionPreference = "Stop"
           $url = "https://github.com/dmang-dev/pspdev-win/releases/download/v2/pspdev-win-15.2.0-v2.zip"
           $zip = Join-Path $env:RUNNER_TEMP "pspdev-win.zip"
           Invoke-WebRequest -Uri $url -OutFile $zip
-          $dest = "C:\msys64\pspdev"
+          $dest = Join-Path $env:MSYS2_ROOT "pspdev"
           New-Item -ItemType Directory -Force -Path $dest | Out-Null
           Expand-Archive -LiteralPath $zip -DestinationPath $dest -Force
           if (-not (Test-Path (Join-Path $dest "bin/psp-gcc.exe"))) {
@@ -62,9 +65,11 @@ jobs:
 
       - name: Package MSYS2 runtime required by PSPDEV
         shell: pwsh
+        env:
+          MSYS2_ROOT: ${{ steps.setup-msys2.outputs.msys2-location }}
         run: |
           $ErrorActionPreference = "Stop"
-          $root = "C:\msys64"
+          $root = $env:MSYS2_ROOT
           $stage = Join-Path $env:RUNNER_TEMP "msys-runtime"
           New-Item -ItemType Directory -Force -Path (Join-Path $stage "usr/bin") | Out-Null
           New-Item -ItemType Directory -Force -Path (Join-Path $stage "usr/lib") | Out-Null
