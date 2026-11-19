@@ -261,19 +261,25 @@ class PSPBuilderApp:
 
     def _compile_worker(self):
         temp_root = None
+        log_lines = []
+
+        def record(message):
+            log_lines.append(str(message))
+            self.log(str(message))
+
         try:
             pspdev, msys = self._ensure_runtime()
             temp_root = Path(tempfile.mkdtemp(prefix="pspbuilder-project-"))
             project_root = temp_root / "source"
             project_root.mkdir()
             self.set_status("Inspeccionando y extrayendo el ZIP...")
-            self.log("Comprobando la estructura del ZIP...")
-            safe_extract_zip(self.zip_path, project_root, self.log)
+            record("Comprobando la estructura del ZIP...")
+            safe_extract_zip(self.zip_path, project_root, record)
             makefile = locate_makefile(project_root)
             project_dir = makefile.parent
-            self.log(f"Makefile encontrado: {makefile.relative_to(project_root)}")
+            record(f"Makefile encontrado: {makefile.relative_to(project_root)}")
             if not (any(project_dir.rglob("*.c")) or any(project_dir.rglob("*.cpp")) or any(project_dir.rglob("*.cc"))):
-                self.log("Aviso: no se detectan fuentes C/C++; se intentará compilar igualmente.")
+                record("Aviso: no se detectan fuentes C/C++; se intentará compilar igualmente.")
             pspdev_short = short_path(pspdev)
             msys_bin = msys / "usr" / "bin"
             env = os.environ.copy()
@@ -286,7 +292,7 @@ class PSPBuilderApp:
             env["LANG"] = "C.UTF-8"
             make_exe = msys_bin / "make.exe"
             self.set_status("Compilando el proyecto PSP...")
-            self.log("Ejecutando make -j2. No cierres PSP Builder.")
+            record("Ejecutando make -j2. No cierres PSP Builder.")
             creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
             process = subprocess.Popen(
                 [str(make_exe), "-j2"], cwd=str(project_dir), env=env,
@@ -297,7 +303,7 @@ class PSPBuilderApp:
             for line in process.stdout:
                 clean = line.rstrip()
                 if clean:
-                    self.log(clean)
+                    record(clean)
             code = process.wait()
             if code != 0:
                 raise RuntimeError(f"make terminó con código {code}. Revisa el registro para ver el error.")
@@ -311,18 +317,21 @@ class PSPBuilderApp:
             final_dir = self.output_dir / f"{stem}-{stamp}"
             final_dir.mkdir(parents=True, exist_ok=False)
             shutil.copy2(source_eboot, final_dir / "EBOOT.PBP")
-            log_file = final_dir / "compilacion.log"
-            log_file.write_text(
-                f"Proyecto: {self.zip_path.name}\nMakefile: {makefile.relative_to(project_root)}\n"
-                f"Resultado: correcto\nTamaño EBOOT.PBP: {(final_dir / 'EBOOT.PBP').stat().st_size} bytes\n",
-                encoding="utf-8"
-            )
-            self.log(f"EBOOT.PBP generado correctamente ({(final_dir / 'EBOOT.PBP').stat().st_size:,} bytes).")
-            self.log(f"Guardado en: {final_dir}")
+            record(f"EBOOT.PBP generado correctamente ({(final_dir / 'EBOOT.PBP').stat().st_size:,} bytes).")
+            record(f"Guardado en: {final_dir}")
+            (final_dir / "compilacion.log").write_text("\n".join(log_lines) + "\n", encoding="utf-8")
             self.set_status("Compilación completada correctamente.")
             self.events.put(("done", f"EBOOT.PBP generado correctamente.\n\nCarpeta:\n{final_dir}"))
         except Exception as exc:
-            self.log(f"ERROR: {exc}")
+            record(f"ERROR: {exc}")
+            try:
+                logs_dir = app_data_dir() / "logs"
+                logs_dir.mkdir(parents=True, exist_ok=True)
+                log_name = f"fallo-{time.strftime('%Y%m%d-%H%M%S')}.log"
+                (logs_dir / log_name).write_text("\n".join(log_lines) + "\n", encoding="utf-8")
+                record(f"Registro guardado en: {logs_dir / log_name}")
+            except Exception:
+                pass
             self.set_status("La compilación no se ha completado.")
             self.events.put(("error", str(exc)))
         finally:
