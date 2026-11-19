@@ -93,6 +93,12 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Test the exact bundled runtime and build a real EBOOT
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          python windows/tests/smoke_bundle.py
+
       - name: Build portable single-file EXE
         shell: pwsh
         run: |
