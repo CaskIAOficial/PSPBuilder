@@ -49,11 +49,25 @@ def main():
         env["MSYS2_PATH_TYPE"] = "inherit"
         env["MSYS2_ARG_CONV_EXCL"] = ""
         env["CHERE_INVOKING"] = "1"
+        env["TMPDIR"] = "/tmp"
+        env["TMP"] = "/tmp"
+        env["TEMP"] = "/tmp"
+        (msys / "tmp").mkdir(parents=True, exist_ok=True)
+        bash = msys_bin / "bash.exe"
+        if not bash.is_file():
+            raise SystemExit("El bundle no contiene bash.exe.")
 
         subprocess.run([str(compiler), "--version"], env=env, check=True)
         for project in PROJECTS:
-            subprocess.run([str(make), "clean"], cwd=project, env=env, check=False)
-            subprocess.run([str(make), "-j2"], cwd=project, env=env, check=True)
+            subprocess.run(
+                [str(bash), "--noprofile", "--norc", "-c", "exec make clean"],
+                cwd=project, env=env, check=False
+            )
+            subprocess.run(
+                [str(bash), "--noprofile", "--norc", "-c",
+                 "export COLLECT_GCC=/pspdev/bin/psp-gcc.exe; exec make -j2"],
+                cwd=project, env=env, check=True
+            )
             eboot = project / "EBOOT.PBP"
             if not eboot.is_file() or eboot.stat().st_size <= 0:
                 raise SystemExit(f"El bundle no ha generado un EBOOT.PBP válido para {project.name}.")
