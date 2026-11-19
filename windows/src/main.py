@@ -291,7 +291,9 @@ class PSPBuilderApp:
             msys_tmp.mkdir(parents=True, exist_ok=True)
             env = os.environ.copy()
             env["PSPDEV"] = "/pspdev"
-            env["PATH"] = str(msys_bin) + os.pathsep + str(pspdev / "bin") + os.pathsep + env.get("PATH", "")
+            # PSPDEV's Windows toolchain documents its bin directory before MSYS2 usr/bin.
+            # This precedence is required for the bundled GCC/LTO helper chain.
+            env["PATH"] = str(pspdev / "bin") + os.pathsep + str(msys_bin) + os.pathsep + env.get("PATH", "")
             env["MSYSTEM"] = "MSYS"
             env["MSYS2_PATH_TYPE"] = "inherit"
             env["MSYS2_ARG_CONV_EXCL"] = ""
@@ -301,14 +303,8 @@ class PSPBuilderApp:
             env["TMPDIR"] = "/tmp"
             env["TMP"] = "/tmp"
             env["TEMP"] = "/tmp"
-            # In the bundled Windows PSPDEV toolchain, LTO's wrapper may be
-            # launched without collect2 exporting COLLECT_GCC. Supplying the
-            # matching driver explicitly lets lto-wrapper resolve its compiler.
-            # Set COLLECT_GCC again inside the MSYS shell. MSYS can translate
-            # or filter Windows environment values when launching POSIX tools;
-            # exporting the POSIX path here guarantees lto-wrapper inherits it.
             bash_exe = msys_bin / "bash.exe"
-            make_command = "export COLLECT_GCC=/pspdev/bin/psp-gcc.exe; exec make -j2"
+            make_command = "exec make -j2"
             self.set_status("Compilando el proyecto PSP...")
             record("Ejecutando make -j2. No cierres PSP Builder.")
             creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
