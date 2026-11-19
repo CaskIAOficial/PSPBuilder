@@ -418,7 +418,7 @@ exit "${'$'}rc"
                 pendingEboot = eboot
                 runOnUiThread {
                     try {
-                        val saved = saveEbootToDownloads(eboot, "PSPBuilder")
+                        val saved = saveEbootToDownloads(eboot, getGameFolderName(extractedDir ?: filesDir))
                         status.text = "¡Compilación local terminada!"
                         log.text = "EBOOT.PBP generado correctamente.\n$saved\n\n${buildLog.takeLast(1800)}"
                     } catch (e: Exception) {
