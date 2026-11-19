@@ -60,6 +60,19 @@ def main():
             raise SystemExit("El bundle no contiene bash.exe.")
 
         subprocess.run([str(compiler), "--version"], env=env, check=True)
+        diagnostic = r"""
+printf 'BASH_COLLECT_GCC=<%s>\\n' "${COLLECT_GCC-UNSET}"
+printf 'BASH_COLLECT_GCC_OPTIONS=<%s>\\n' "${COLLECT_GCC_OPTIONS-UNSET}"
+printf 'BASH_PATH=<%s>\\n' "$PATH"
+printf 'BASH_COMPILER=<%s>\\n' "$(command -v psp-gcc)"
+printf 'COLLECT2_PATH=<%s>\\n' "$(psp-gcc -print-prog-name=collect2)"
+printf 'LTO_WRAPPER_PATH=<%s>\\n' "$(psp-gcc -print-prog-name=lto-wrapper)"
+printf 'LTO_PLUGIN_PATH=<%s>\\n' "$(psp-gcc -print-file-name=liblto_plugin-0.dll)"
+"""
+        subprocess.run(
+            [str(bash), "--noprofile", "--norc", "-c", diagnostic],
+            cwd=ROOT, env=env, check=True
+        )
         for project in PROJECTS:
             subprocess.run(
                 [str(bash), "--noprofile", "--norc", "-c", "exec make clean"],
