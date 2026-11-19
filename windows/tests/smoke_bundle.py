@@ -46,12 +46,14 @@ def main():
         env["PATH"] = os.pathsep.join(
             [str(msys_bin), str(msys / "pspdev" / "bin"), env.get("PATH", "")]
         )
-        env["MSYS2_PATH_TYPE"] = "inherit"
-        env["MSYS2_ARG_CONV_EXCL"] = ""
         env["CHERE_INVOKING"] = "1"
         env["TMPDIR"] = "/tmp"
         env["TMP"] = "/tmp"
         env["TEMP"] = "/tmp"
+        # Set COLLECT_GCC in the native Windows parent environment, using the
+        # absolute Windows path. This avoids relying on MSYS shell export or
+        # POSIX path translation for the LTO helper process.
+        env["COLLECT_GCC"] = str(compiler)
         (msys / "tmp").mkdir(parents=True, exist_ok=True)
         bash = msys_bin / "bash.exe"
         if not bash.is_file():
@@ -64,8 +66,7 @@ def main():
                 cwd=project, env=env, check=False
             )
             subprocess.run(
-                [str(bash), "--noprofile", "--norc", "-c",
-                 "export COLLECT_GCC=/pspdev/bin/psp-gcc.exe; exec make -j2"],
+                [str(bash), "--noprofile", "--norc", "-c", "exec make -j2"],
                 cwd=project, env=env, check=True
             )
             eboot = project / "EBOOT.PBP"
