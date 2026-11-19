@@ -304,13 +304,16 @@ class PSPBuilderApp:
             # In the bundled Windows PSPDEV toolchain, LTO's wrapper may be
             # launched without collect2 exporting COLLECT_GCC. Supplying the
             # matching driver explicitly lets lto-wrapper resolve its compiler.
-            env["COLLECT_GCC"] = short_path(pspdev / "bin" / "psp-gcc.exe")
-            make_exe = msys_bin / "make.exe"
+            # Set COLLECT_GCC again inside the MSYS shell. MSYS can translate
+            # or filter Windows environment values when launching POSIX tools;
+            # exporting the POSIX path here guarantees lto-wrapper inherits it.
+            bash_exe = msys_bin / "bash.exe"
+            make_command = "export COLLECT_GCC=/pspdev/bin/psp-gcc.exe; exec make -j2"
             self.set_status("Compilando el proyecto PSP...")
             record("Ejecutando make -j2. No cierres PSP Builder.")
             creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
             process = subprocess.Popen(
-                [str(make_exe), "-j2"], cwd=str(project_dir), env=env,
+                [str(bash_exe), "--noprofile", "--norc", "-c", make_command], cwd=str(project_dir), env=env,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, encoding="utf-8", errors="replace",
                 bufsize=1, creationflags=creationflags
