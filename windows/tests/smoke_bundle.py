@@ -43,8 +43,9 @@ def main():
         env["MSYSTEM"] = "MSYS"
         env["MSYS2_PATH_TYPE"] = "inherit"
         env["MSYS2_ARG_CONV_EXCL"] = ""
+        # Keep PSPDEV first, matching the toolchain's Windows install guidance.
         env["PATH"] = os.pathsep.join(
-            [str(msys_bin), str(msys / "pspdev" / "bin"), env.get("PATH", "")]
+            [str(msys / "pspdev" / "bin"), str(msys_bin), env.get("PATH", "")]
         )
         env["CHERE_INVOKING"] = "1"
         env["TMPDIR"] = "/tmp"
