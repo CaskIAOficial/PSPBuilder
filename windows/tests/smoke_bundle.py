@@ -79,7 +79,7 @@ printf 'LTO_PLUGIN_PATH=<%s>\\n' "$(psp-gcc -print-file-name=liblto_plugin-0.dll
                 cwd=project, env=env, check=False
             )
             subprocess.run(
-                [str(bash), "--noprofile", "--norc", "-c", "exec make -j2"],
+                [str(bash), "--noprofile", "--norc", "-c", "exec make -j2 'CFLAGS=-O2 -G0 -Wall -v'"],
                 cwd=project, env=env, check=True
             )
             eboot = project / "EBOOT.PBP"
