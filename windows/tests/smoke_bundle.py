@@ -51,10 +51,6 @@ def main():
         env["TMPDIR"] = "/tmp"
         env["TMP"] = "/tmp"
         env["TEMP"] = "/tmp"
-        # Set COLLECT_GCC in the native Windows parent environment, using the
-        # absolute Windows path. This avoids relying on MSYS shell export or
-        # POSIX path translation for the LTO helper process.
-        env["COLLECT_GCC"] = str(compiler)
         (msys / "tmp").mkdir(parents=True, exist_ok=True)
         bash = msys_bin / "bash.exe"
         if not bash.is_file():
