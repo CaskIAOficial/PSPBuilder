@@ -284,6 +284,11 @@ class PSPBuilderApp:
             if not (any(project_dir.rglob("*.c")) or any(project_dir.rglob("*.cpp")) or any(project_dir.rglob("*.cc"))):
                 record("Aviso: no se detectan fuentes C/C++; se intentará compilar igualmente.")
             msys_bin = msys / "usr" / "bin"
+            # The portable MSYS2 bundle does not preserve an empty /tmp directory
+            # in ZIP archives. Create it before starting bash/make to avoid MSYS
+            # startup warnings and ensure temporary files can be created.
+            msys_tmp = msys / "tmp"
+            msys_tmp.mkdir(parents=True, exist_ok=True)
             env = os.environ.copy()
             env["PSPDEV"] = "/pspdev"
             env["PATH"] = str(msys_bin) + os.pathsep + str(pspdev / "bin") + os.pathsep + env.get("PATH", "")
@@ -293,6 +298,13 @@ class PSPBuilderApp:
             env["CHERE_INVOKING"] = "1"
             env["HOME"] = str(app_data_dir())
             env["LANG"] = "C.UTF-8"
+            env["TMPDIR"] = "/tmp"
+            env["TMP"] = "/tmp"
+            env["TEMP"] = "/tmp"
+            # In the bundled Windows PSPDEV toolchain, LTO's wrapper may be
+            # launched without collect2 exporting COLLECT_GCC. Supplying the
+            # matching driver explicitly lets lto-wrapper resolve its compiler.
+            env["COLLECT_GCC"] = short_path(pspdev / "bin" / "psp-gcc.exe")
             make_exe = msys_bin / "make.exe"
             self.set_status("Compilando el proyecto PSP...")
             record("Ejecutando make -j2. No cierres PSP Builder.")
