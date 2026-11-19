@@ -6,10 +6,10 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-ASSETS = ROOT / "assets"
+ASSETS = ROOT / "windows" / "assets"
 TOOLCHAIN = ASSETS / "pspdev-win.zip"
 RUNTIME = ASSETS / "msys-runtime.zip"
-PROJECT = ROOT / "tests" / "hello"
+PROJECT = ROOT / "windows" / "tests" / "hello"
 
 
 def main():
