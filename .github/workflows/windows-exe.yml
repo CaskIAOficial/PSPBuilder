@@ -8,6 +8,10 @@ on:
       - "windows/**"
       - ".github/workflows/windows-exe.yml"
 
+concurrency:
+  group: windows-exe-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
