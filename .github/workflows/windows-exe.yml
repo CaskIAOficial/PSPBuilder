@@ -1,4 +1,4 @@
-name: Build PSP Builder Windows EXE
+name: Aplicación EXE
 
 on:
   workflow_dispatch:
