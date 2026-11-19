@@ -74,15 +74,26 @@ printf 'LTO_PLUGIN_PATH=<%s>\\n' "$(psp-gcc -print-file-name=liblto_plugin-0.dll
             cwd=ROOT, env=env, check=True
         )
         for project in PROJECTS:
+            test_project = base / ("project-" + project.name)
+            shutil.copytree(project, test_project)
+            makefile = test_project / "Makefile"
+            makefile_text = makefile.read_text(encoding="utf-8")
+            expected_flags = "CFLAGS = -O2 -G0 -Wall"
+            if expected_flags not in makefile_text:
+                raise SystemExit(f"No se encontró CFLAGS esperado en {makefile}.")
+            makefile.write_text(
+                makefile_text.replace(expected_flags, expected_flags + " -v", 1),
+                encoding="utf-8",
+            )
             subprocess.run(
                 [str(bash), "--noprofile", "--norc", "-c", "exec make clean"],
-                cwd=project, env=env, check=False
+                cwd=test_project, env=env, check=False
             )
             subprocess.run(
-                [str(bash), "--noprofile", "--norc", "-c", "exec make -j2 'CFLAGS=-O2 -G0 -Wall -v'"],
-                cwd=project, env=env, check=True
+                [str(bash), "--noprofile", "--norc", "-c", "exec make -j2"],
+                cwd=test_project, env=env, check=True
             )
-            eboot = project / "EBOOT.PBP"
+            eboot = test_project / "EBOOT.PBP"
             if not eboot.is_file() or eboot.stat().st_size <= 0:
                 raise SystemExit(f"El bundle no ha generado un EBOOT.PBP válido para {project.name}.")
             print(f"BUNDLE_SMOKE_TEST_OK [{project.name}]: {eboot.stat().st_size} bytes")
