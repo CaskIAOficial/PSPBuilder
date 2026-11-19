@@ -225,8 +225,10 @@ class PSPBuilderApp:
 
     def _ensure_runtime(self):
         base = app_data_dir() / "runtime"
-        pspdev = base / "pspdev"
         msys = base / "msys"
+        # PSPDEV's psp-config uses the MSYS prefix /pspdev; keep the toolchain
+        # inside the private MSYS root so that this prefix resolves correctly.
+        pspdev = msys / "pspdev"
         make = msys / "usr" / "bin" / "make.exe"
         compiler = pspdev / "bin" / "psp-gcc.exe"
         if compiler.exists() and make.exists():
@@ -249,10 +251,11 @@ class PSPBuilderApp:
             zf.extractall(psp_tmp)
         with zipfile.ZipFile(runtime_zip) as zf:
             zf.extractall(msys_tmp)
-        # Replace only this application's own runtime folders.
-        shutil.rmtree(pspdev, ignore_errors=True)
+        # The Windows PSPDEV port resolves its SDK prefix as /pspdev in MSYS.
+        (msys_tmp / "pspdev").parent.mkdir(parents=True, exist_ok=True)
+        psp_tmp.rename(msys_tmp / "pspdev")
+        # Replace only this application's own runtime folder.
         shutil.rmtree(msys, ignore_errors=True)
-        psp_tmp.rename(pspdev)
         msys_tmp.rename(msys)
         if not compiler.exists() or not make.exists():
             raise RuntimeError("El paquete de compilación está incompleto: no se encuentra psp-gcc o make.")
@@ -280,10 +283,9 @@ class PSPBuilderApp:
             record(f"Makefile encontrado: {makefile.relative_to(project_root)}")
             if not (any(project_dir.rglob("*.c")) or any(project_dir.rglob("*.cpp")) or any(project_dir.rglob("*.cc"))):
                 record("Aviso: no se detectan fuentes C/C++; se intentará compilar igualmente.")
-            pspdev_short = short_path(pspdev)
             msys_bin = msys / "usr" / "bin"
             env = os.environ.copy()
-            env["PSPDEV"] = pspdev_short
+            env["PSPDEV"] = "/pspdev"
             env["PATH"] = str(msys_bin) + os.pathsep + str(pspdev / "bin") + os.pathsep + env.get("PATH", "")
             env["MSYS2_PATH_TYPE"] = "inherit"
             env["MSYS2_ARG_CONV_EXCL"] = ""
