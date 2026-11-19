@@ -73,11 +73,18 @@ jobs:
           $stage = Join-Path $env:RUNNER_TEMP "msys-runtime"
           New-Item -ItemType Directory -Force -Path (Join-Path $stage "usr/bin") | Out-Null
           New-Item -ItemType Directory -Force -Path (Join-Path $stage "usr/lib") | Out-Null
+          New-Item -ItemType Directory -Force -Path (Join-Path $stage "usr/share") | Out-Null
           Get-ChildItem (Join-Path $root "usr/bin") -File |
             Where-Object { $_.Extension -in @(".exe", ".dll") } |
             Copy-Item -Destination (Join-Path $stage "usr/bin") -Force
           Get-ChildItem (Join-Path $root "usr/lib") -File -Filter "*.dll" |
             Copy-Item -Destination (Join-Path $stage "usr/lib") -Force
+          foreach ($licenseDir in @("licenses", "doc")) {
+            $sourceDir = Join-Path $root "usr/share/$licenseDir"
+            if (Test-Path $sourceDir) {
+              Copy-Item $sourceDir -Destination (Join-Path $stage "usr/share") -Recurse -Force
+            }
+          }
           if (-not (Test-Path (Join-Path $stage "usr/bin/make.exe"))) { throw "No se ha empaquetado make.exe." }
           if (-not (Test-Path (Join-Path $stage "usr/bin/msys-2.0.dll"))) { throw "No se ha empaquetado msys-2.0.dll." }
           $runtimeZip = Join-Path $env:RUNNER_TEMP "msys-runtime.zip"
