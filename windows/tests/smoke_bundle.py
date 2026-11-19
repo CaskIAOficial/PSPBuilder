@@ -9,7 +9,10 @@ ROOT = Path(__file__).resolve().parents[2]
 ASSETS = ROOT / "windows" / "assets"
 TOOLCHAIN = ASSETS / "pspdev-win.zip"
 RUNTIME = ASSETS / "msys-runtime.zip"
-PROJECT = ROOT / "windows" / "tests" / "hello"
+PROJECTS = [
+    ROOT / "windows" / "tests" / "hello",
+    ROOT / "windows" / "tests" / "el_sagrado_api",
+]
 
 
 def main():
@@ -48,11 +51,13 @@ def main():
         env["CHERE_INVOKING"] = "1"
 
         subprocess.run([str(compiler), "--version"], env=env, check=True)
-        subprocess.run([str(make), "-j2"], cwd=PROJECT, env=env, check=True)
-        eboot = PROJECT / "EBOOT.PBP"
-        if not eboot.is_file() or eboot.stat().st_size <= 0:
-            raise SystemExit("El bundle no ha generado un EBOOT.PBP válido.")
-        print(f"BUNDLE_SMOKE_TEST_OK: {eboot.stat().st_size} bytes")
+        for project in PROJECTS:
+            subprocess.run([str(make), "clean"], cwd=project, env=env, check=False)
+            subprocess.run([str(make), "-j2"], cwd=project, env=env, check=True)
+            eboot = project / "EBOOT.PBP"
+            if not eboot.is_file() or eboot.stat().st_size <= 0:
+                raise SystemExit(f"El bundle no ha generado un EBOOT.PBP válido para {project.name}.")
+            print(f"BUNDLE_SMOKE_TEST_OK [{project.name}]: {eboot.stat().st_size} bytes")
 
 
 if __name__ == "__main__":
