@@ -287,6 +287,7 @@ class PSPBuilderApp:
             env = os.environ.copy()
             env["PSPDEV"] = "/pspdev"
             env["PATH"] = str(msys_bin) + os.pathsep + str(pspdev / "bin") + os.pathsep + env.get("PATH", "")
+            env["MSYSTEM"] = "MSYS"
             env["MSYS2_PATH_TYPE"] = "inherit"
             env["MSYS2_ARG_CONV_EXCL"] = ""
             env["CHERE_INVOKING"] = "1"
