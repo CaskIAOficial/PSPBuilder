@@ -37,6 +37,9 @@ def main():
 
         env = os.environ.copy()
         env["PSPDEV"] = "/pspdev"
+        env["MSYSTEM"] = "MSYS"
+        env["MSYS2_PATH_TYPE"] = "inherit"
+        env["MSYS2_ARG_CONV_EXCL"] = ""
         env["PATH"] = os.pathsep.join(
             [str(msys_bin), str(msys / "pspdev" / "bin"), env.get("PATH", "")]
         )
