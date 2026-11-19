@@ -1,0 +1,136 @@
+name: Build PSP Builder Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, windows-exe]
+    paths:
+      - "windows/**"
+      - ".github/workflows/windows-exe.yml"
+
+concurrency:
+  group: windows-exe-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare MSYS2 runtime and GNU Make
+        id: setup-msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MSYS
+          install: make
+          update: true
+          path-type: inherit
+
+      - name: Download PSPDEV Windows toolchain
+        shell: pwsh
+        env:
+          MSYS2_ROOT: ${{ steps.setup-msys2.outputs.msys2-location }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $url = "https://github.com/dmang-dev/pspdev-win/releases/download/v2/pspdev-win-15.2.0-v2.zip"
+          $zip = Join-Path $env:RUNNER_TEMP "pspdev-win.zip"
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          $dest = Join-Path $env:MSYS2_ROOT "pspdev"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Expand-Archive -LiteralPath $zip -DestinationPath $dest -Force
+          if (-not (Test-Path (Join-Path $dest "bin/psp-gcc.exe"))) {
+            throw "El paquete PSPDEV no contiene bin/psp-gcc.exe en su raíz."
+          }
+          "PSPDEV=/pspdev" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "PSPDEV_ZIP=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Smoke test real PSP build on Windows
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          export PSPDEV="/pspdev"
+          export PATH="$PSPDEV/bin:/usr/bin:$PATH"
+          echo "PSPDEV=$PSPDEV"
+          psp-gcc --version
+          psp-config --pspsdk-path
+          WORKSPACE_POSIX="$(cygpath -u "$GITHUB_WORKSPACE")"
+          cd "$WORKSPACE_POSIX/windows/tests/hello"
+          make clean || true
+          make -j2
+          test -s EBOOT.PBP
+          file EBOOT.PBP || true
+          echo "PSPDEV_SMOKE_TEST_OK"
+
+      - name: Package MSYS2 runtime required by PSPDEV
+        shell: pwsh
+        env:
+          MSYS2_ROOT: ${{ steps.setup-msys2.outputs.msys2-location }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $root = $env:MSYS2_ROOT
+          $stage = Join-Path $env:RUNNER_TEMP "msys-runtime"
+          New-Item -ItemType Directory -Force -Path (Join-Path $stage "usr/bin") | Out-Null
+          New-Item -ItemType Directory -Force -Path (Join-Path $stage "usr/lib") | Out-Null
+          New-Item -ItemType Directory -Force -Path (Join-Path $stage "usr/share") | Out-Null
+          Get-ChildItem (Join-Path $root "usr/bin") -File |
+            Where-Object { $_.Extension -in @(".exe", ".dll") } |
+            Copy-Item -Destination (Join-Path $stage "usr/bin") -Force
+          Get-ChildItem (Join-Path $root "usr/lib") -File -Filter "*.dll" |
+            Copy-Item -Destination (Join-Path $stage "usr/lib") -Force
+          foreach ($licenseDir in @("licenses", "doc")) {
+            $sourceDir = Join-Path $root "usr/share/$licenseDir"
+            if (Test-Path $sourceDir) {
+              Copy-Item $sourceDir -Destination (Join-Path $stage "usr/share") -Recurse -Force
+            }
+          }
+          if (-not (Test-Path (Join-Path $stage "usr/bin/make.exe"))) { throw "No se ha empaquetado make.exe." }
+          if (-not (Test-Path (Join-Path $stage "usr/bin/msys-2.0.dll"))) { throw "No se ha empaquetado msys-2.0.dll." }
+          $runtimeZip = Join-Path $env:RUNNER_TEMP "msys-runtime.zip"
+          Compress-Archive -Path (Join-Path $stage "usr") -DestinationPath $runtimeZip -CompressionLevel Optimal
+          "MSYS_RUNTIME_ZIP=$runtimeZip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Prepare Windows application bundle
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path "windows/assets" | Out-Null
+          Copy-Item $env:PSPDEV_ZIP "windows/assets/pspdev-win.zip"
+          Copy-Item $env:MSYS_RUNTIME_ZIP "windows/assets/msys-runtime.zip"
+          Get-ChildItem "windows/assets" | Format-Table Name, Length
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Test the exact bundled runtime and build a real EBOOT
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          python windows/tests/smoke_bundle.py
+
+      - name: Build portable single-file EXE
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          python -m pip install --upgrade pip pyinstaller
+          python -m py_compile windows/src/main.py
+          pyinstaller --clean --noconfirm --onefile --windowed --name "PSP Builder" --add-data "windows/assets/pspdev-win.zip;assets" --add-data "windows/assets/msys-runtime.zip;assets" windows/src/main.py
+          $exe = "dist/PSP Builder.exe"
+          if (-not (Test-Path $exe)) { throw "No se ha generado PSP Builder.exe." }
+          if ((Get-Item $exe).Length -le 0) { throw "El EXE generado está vacío." }
+          Write-Host "EXE generado: $((Get-Item $exe).Length) bytes"
+
+      - name: Upload Windows EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: PSPBuilder-Windows-EXE
+          path: dist/PSP Builder.exe
+          if-no-files-found: error
+          retention-days: 30
