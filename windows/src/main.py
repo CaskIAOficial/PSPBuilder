@@ -16,6 +16,7 @@ APP_NAME = "PSP Builder"
 MAX_FILES = 10_000
 MAX_UNPACKED = 300 * 1024 * 1024
 CHUNK = 1024 * 1024
+BUILD_TIMEOUT_SECONDS = 30 * 60
 
 
 def resource_path(name: str) -> Path:
@@ -309,15 +310,95 @@ class PSPBuilderApp:
             record("Ejecutando make -j2. No cierres PSP Builder.")
             creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
             process = subprocess.Popen(
-                [str(bash_exe), "--noprofile", "--norc", "-c", make_command], cwd=str(project_dir), env=env,
+                [str(bash_exe), "--noprofile", "--norc", "-c", make_command],
+                cwd=str(project_dir), env=env,
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, encoding="utf-8", errors="replace",
                 bufsize=1, creationflags=creationflags
             )
-            for line in process.stdout:
-                clean = line.rstrip()
-                if clean:
-                    record(clean)
+
+            # Read compiler output separately so the worker can still detect a
+            # process that has stopped producing output or is waiting forever.
+            output_queue = queue.Queue()
+
+            def read_output():
+                try:
+                    for line in process.stdout:
+                        output_queue.put(line.rstrip())
+                finally:
+                    output_queue.put(None)
+
+            reader = threading.Thread(target=read_output, daemon=True)
+            reader.start()
+            started = time.monotonic()
+            last_status = started
+            last_log = started
+            reader_finished = False
+
+            while True:
+                try:
+                    output = output_queue.get(timeout=1.0)
+                except queue.Empty:
+                    output = ""
+
+                if output is None:
+                    reader_finished = True
+                elif output:
+                    record(output)
+
+                code = process.poll()
+                now = time.monotonic()
+                elapsed = int(now - started)
+
+                if code is not None and reader_finished:
+                    break
+
+                if elapsed >= BUILD_TIMEOUT_SECONDS:
+                    record(
+                        f"ERROR: make sigue activo después de "
+                        f"{BUILD_TIMEOUT_SECONDS // 60} minutos. Se va a detener."
+                    )
+                    if os.name == "nt":
+                        try:
+                            subprocess.run(
+                                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                                check=False,
+                                timeout=10,
+                                creationflags=creationflags
+                            )
+                        except Exception as kill_error:
+                            record(f"No se pudo cerrar el árbol de procesos con taskkill: {kill_error}")
+                    else:
+                        try:
+                            process.terminate()
+                        except Exception:
+                            pass
+                    try:
+                        process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait()
+                    raise RuntimeError(
+                        f"La compilación se ha detenido porque superó el límite de "
+                        f"{BUILD_TIMEOUT_SECONDS // 60} minutos. Revisa el registro guardado."
+                    )
+
+                if now - last_status >= 15:
+                    self.set_status(
+                        f"Compilando... {elapsed // 60} min {elapsed % 60:02d} s. "
+                        "El compilador sigue en ejecución."
+                    )
+                    last_status = now
+
+                if now - last_log >= 60:
+                    record(
+                        f"Compilación en curso ({elapsed // 60} min {elapsed % 60:02d} s)."
+                    )
+                    last_log = now
+
             code = process.wait()
             if code != 0:
                 raise RuntimeError(f"make terminó con código {code}. Revisa el registro para ver el error.")
